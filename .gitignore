@@ -2,7 +2,11 @@
 
 HARDWARE/History/
 HARDWARE/Project Logs for DesignProject/
+HARDWARE/Project Outputs for DesignProject/
+
+
 *.log
 *build/
 *.vscode/
 *.rar
+*.Dat

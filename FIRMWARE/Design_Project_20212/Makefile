@@ -65,7 +65,15 @@ Core/Src/system_stm32f1xx.c \
 Core/Src/adc.c \
 Core/Src/tim.c \
 Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_adc.c \
-Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_adc_ex.c
+Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_adc_ex.c \
+Core/Src/lcd.c \
+Core/Src/touch.c \
+Core/Src/font.c \
+Core/Src/MQTTConnectClient.c \
+Core/Src/MQTTPacket.c \
+Core/Src/MQTTSerializePublish.c \
+Core/Src/MQTTSim800.c \
+Core/Src/l70.c
 
 # ASM sources
 ASM_SOURCES =  \
