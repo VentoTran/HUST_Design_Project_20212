@@ -57,6 +57,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define LED_Pin GPIO_PIN_13
+#define LED_GPIO_Port GPIOC
+#define GPS_RS_Pin GPIO_PIN_1
+#define GPS_RS_GPIO_Port GPIOA
 #define LCD_CS_Pin GPIO_PIN_4
 #define LCD_CS_GPIO_Port GPIOC
 #define LCD_RS_Pin GPIO_PIN_5
@@ -71,6 +75,11 @@ void Error_Handler(void);
 #define TCH_CS_GPIO_Port GPIOB
 #define TCH_IRQ_Pin GPIO_PIN_6
 #define TCH_IRQ_GPIO_Port GPIOC
+#define TCH_IRQ_EXTI_IRQn EXTI9_5_IRQn
+#define PWR_STDBY_Pin GPIO_PIN_8
+#define PWR_STDBY_GPIO_Port GPIOB
+#define PWR_CHRG_Pin GPIO_PIN_9
+#define PWR_CHRG_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

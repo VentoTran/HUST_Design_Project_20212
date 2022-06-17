@@ -46,7 +46,7 @@
 #define GYRO_XOUT_H_REG 0x43
 
 // Setup MPU6050
-#define MPU6050_ADDR 0xD0
+#define MPU6050_ADDR 0xD2
 const uint16_t i2c_timeout = 100;
 const double Accel_Z_corrector = 18500.0;
 
@@ -65,14 +65,15 @@ Kalman_t KalmanY = {
 
 uint8_t MPU6050_Init(I2C_HandleTypeDef *I2Cx)
 {
-    uint8_t check;
-    uint8_t Data;
+    uint8_t check = 0;
+    uint8_t Data = 0;
 
     // check device ID WHO_AM_I
 
     HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, i2c_timeout);
 
-    if (check == 104) // 0x68 will be returned by the sensor if everything goes well
+
+    if (check == 104) // 104 will be returned by the sensor if everything goes well
     {
         // power management register 0X6B we should write all 0's to wake the sensor up
         Data = 0;
@@ -170,9 +171,9 @@ void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct)
     DataStruct->Gyro_Y_RAW = (int16_t)(Rec_Data[10] << 8 | Rec_Data[11]);
     DataStruct->Gyro_Z_RAW = (int16_t)(Rec_Data[12] << 8 | Rec_Data[13]);
 
-    DataStruct->Ax = DataStruct->Accel_X_RAW / 16384.0;
-    DataStruct->Ay = DataStruct->Accel_Y_RAW / 16384.0;
-    DataStruct->Az = DataStruct->Accel_Z_RAW / 16384.0;
+    DataStruct->Ax = DataStruct->Accel_X_RAW / 17700.0;
+    DataStruct->Ay = DataStruct->Accel_Y_RAW / 17700.0;
+    DataStruct->Az = DataStruct->Accel_Z_RAW / 17700.0;
     DataStruct->Temperature = (float)((int16_t)temp / (float)340.0 + (float)36.53);
     DataStruct->Gx = DataStruct->Gyro_X_RAW / 131.0;
     DataStruct->Gy = DataStruct->Gyro_Y_RAW / 131.0;
@@ -193,17 +194,17 @@ void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct)
         roll = 0.0;
     }
     double pitch = atan2(-DataStruct->Accel_X_RAW, DataStruct->Accel_Z_RAW) * RAD_TO_DEG;
-    if ((pitch < -90 && DataStruct->KalmanAngleY > 90) || (pitch > 90 && DataStruct->KalmanAngleY < -90))
-    {
-        KalmanY.angle = pitch;
-        DataStruct->KalmanAngleY = pitch;
-    }
-    else
-    {
+    // if ((pitch < -90 && DataStruct->KalmanAngleY > 90) || (pitch > 90 && DataStruct->KalmanAngleY < -90))
+    // {
+        // KalmanY.angle = pitch;
+        // DataStruct->KalmanAngleY = pitch;
+    // }
+    // else
+    // {
         DataStruct->KalmanAngleY = Kalman_getAngle(&KalmanY, pitch, DataStruct->Gy, dt);
-    }
-    if (fabs(DataStruct->KalmanAngleY) > 90)
-        DataStruct->Gx = -DataStruct->Gx;
+    // }
+    // if (fabs(DataStruct->KalmanAngleY) > 90)
+    //     DataStruct->Gx = -DataStruct->Gx;
     DataStruct->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, DataStruct->Gx, dt);
 }
 

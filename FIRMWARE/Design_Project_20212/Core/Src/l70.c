@@ -1,72 +1,26 @@
+/**
+ * @file l70.c
+ * @author Vento (zseefvhu12345@gmail.com)
+ * @brief 
+ * @version 1.0
+ * @date 2022-06-11
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
+
 #include "l70.h"
+#include "helperFunc.h"
+
+#if FREERTOS == 1
+#include "cmsis_os2.h"
+#endif
 
 l70GPGGAType_t l70GPGGA = {0};
 int k = 0;
 char l70RxData[100] = {0};
 char l70Data = 0;
 l70Data_t l70RxState;
-
-// // Reverses a string 'str' of length 'len'
-// void reverse(char* str, int len)
-// {
-//     int i = 0, j = len - 1, temp;
-//     while (i < j)
-//     {
-//         temp = str[i];
-//         str[i] = str[j];
-//         str[j] = temp;
-//         i++;
-//         j--;
-//     }
-// }
-
-// // Converts a given integer x to string str[]. 
-// // d is the number of digits required in the output. 
-// // If d is more than the number of digits in x, 
-// // then 0s are added at the beginning.
-// int intToStr(int x, char str[], int d)
-// {
-//     int i = 0;
-//     if (x == 0)
-//     {
-//         str[i++] = '0';
-//     }
-//     else
-//     {
-//         while (x)
-//         {
-//             str[i++] = (x % 10) + '0';
-//             x = x / 10;
-//         }
-//     }
-    
-//     // If number of digits required is more, then
-//     // add 0s at the beginning
-//     while (i < d)
-//         str[i++] = '0';
-
-//     reverse(str, i);
-//     str[i] = '\0';
-//     return i;
-// }
-
-// // Converts a floating-point/double number to a string.
-// void ftoa(float n, char* res, int afterpoint)
-// {
-//     // Extract integer part
-//     int ipart = (int)n;
-//     // Extract floating part
-//     float fpart = n - (float)ipart;
-//     // convert integer part to string
-//     int i = intToStr(ipart, res, 0);
-//     // check for display option after point
-//     if (afterpoint != 0)
-//     {
-//         res[i] = '.'; // add dot
-//         fpart = fpart * pow(10, afterpoint);
-//         intToStr((int)fpart, res + i + 1, afterpoint);
-//     }
-// }
 
 void l70_callback(void)
 {
@@ -75,7 +29,7 @@ void l70_callback(void)
     {
         l70RxData[k++] = l70Data;
         l70RxState = L70_DATA;
-        HAL_UART_Receive_IT(&huart3, (uint8_t*)&l70Data, 1);
+        HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
     }
     //End process
     else if(l70Data == '\n' && l70RxState == L70_DATA)
@@ -87,11 +41,11 @@ void l70_callback(void)
     else if(l70RxState == L70_DATA)
     {
         l70RxData[k++] = l70Data;
-        HAL_UART_Receive_IT(&huart3, (uint8_t*)&l70Data, 1);
+        HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
     }
     else 
     {
-        HAL_UART_Receive_IT(&huart3, (uint8_t*)&l70Data, 1);
+        HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
     }
 }
 
@@ -100,7 +54,7 @@ char *l70_receiveGPS(void)
     k = 0;
     memset(l70RxData, '\0', sizeof(l70RxData));
     l70RxState = L70_START_DATA;
-    HAL_UART_Receive_IT(&huart3, (uint8_t*)&l70Data, 1);
+    HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
     while(!(l70RxState == L70_END_DATA));
     return l70RxData;
 }
@@ -109,7 +63,29 @@ void l70_init(void)
 {
     //Output once every one position fix
     //GGA interval fix data
-    HAL_UART_Transmit_IT(&huart3 ,(uint8_t*)"$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n", strlen("$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n"));
+    l70RxState = L70_START_DATA;
+    HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
+    
+    HAL_UART_Transmit_IT(UART_L70 ,(uint8_t*)"$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n", 51);
+
+    osDelay(1000);
+    k = 0;
+    memset(l70RxData, '\0', sizeof(l70RxData));
+    l70RxState = L70_START_DATA;
+    
+    HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
+
+    HAL_UART_Transmit_IT(UART_L70 ,(uint8_t*)"$PMTK185,0*22\r\n", 15);
+    osDelay(1000);
+    k = 0;
+    memset(l70RxData, '\0', sizeof(l70RxData));
+    HAL_UART_Receive_IT(UART_L70, (uint8_t*)&l70Data, 1);
+    l70RxState = L70_START_DATA;
+
+    HAL_UART_Transmit_IT(UART_L70 ,(uint8_t*)"$PMTK285,2,100*3E\r\n", 19);
+    osDelay(10000);
+    k = 0;
+    memset(l70RxData, '\0', sizeof(l70RxData));
 }
 
 void l70_handleGPS(char *latData, char *longData, char *GPSResponse)

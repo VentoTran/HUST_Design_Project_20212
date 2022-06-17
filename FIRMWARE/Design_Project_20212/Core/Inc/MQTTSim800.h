@@ -37,7 +37,7 @@ MQTT packet https://github.com/eclipse/paho.mqtt.embedded-c/tree/master/MQTTPack
 
 // === CONFIG ===
 #define UART_SIM800 &huart1
-#define FREERTOS    0
+#define FREERTOS    1
 #define CMD_DELAY   2000
 // ==============
 
@@ -110,9 +110,3 @@ void MQTT_PingReq(void);
 void MQTT_Sub(char *topic);
 
 void MQTT_Receive(unsigned char *buf);
-
-void reverse(char* str, int len);
-
-int intToStr(int x, char str[], int d);
-
-void ftoa(float n, char* res, int afterpoint);

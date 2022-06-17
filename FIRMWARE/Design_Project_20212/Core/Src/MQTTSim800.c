@@ -37,6 +37,7 @@ MQTT packet https://github.com/eclipse/paho.mqtt.embedded-c/tree/master/MQTTPack
 #include "usart.h"
 #include <string.h>
 #include "MQTTPacket.h"
+#include "helperFunc.h"
 
 #if FREERTOS == 1
 #include <cmsis_os.h>
@@ -59,71 +60,6 @@ uint16_t rx_index = 0;
 uint8_t mqtt_receive = 0;
 char mqtt_buffer[200] = {0};
 uint16_t mqtt_index = 0;
-
-//-------------------------------------------------------------------------
-
-// Reverses a string 'str' of length 'len'
-void reverse(char* str, int len)
-{
-    int i = 0, j = len - 1, temp;
-    while (i < j)
-    {
-        temp = str[i];
-        str[i] = str[j];
-        str[j] = temp;
-        i++;
-        j--;
-    }
-}
-
-// Converts a given integer x to string str[]. 
-// d is the number of digits required in the output. 
-// If d is more than the number of digits in x, 
-// then 0s are added at the beginning.
-int intToStr(int x, char str[], int d)
-{
-    int i = 0;
-    if (x == 0)
-    {
-        str[i++] = '0';
-    }
-    else
-    {
-        while (x)
-        {
-            str[i++] = (x % 10) + '0';
-            x = x / 10;
-        }
-    }
-    
-    // If number of digits required is more, then
-    // add 0s at the beginning
-    while (i < d)
-        str[i++] = '0';
-
-    reverse(str, i);
-    str[i] = '\0';
-    return i;
-}
-
-// Converts a floating-point/double number to a string.
-void ftoa(float n, char* res, int afterpoint)
-{
-    // Extract integer part
-    int ipart = (int)n;
-    // Extract floating part
-    float fpart = n - (float)ipart;
-    // convert integer part to string
-    int i = intToStr(ipart, res, 0);
-    // check for display option after point
-    if (afterpoint != 0)
-    {
-        res[i] = '.'; // add dot
-        fpart = fpart * pow(10, afterpoint);
-        intToStr((int)fpart, res + i + 1, afterpoint);
-    }
-}
-
 
 //--------------------------------------------------------------------------
 
@@ -491,56 +427,56 @@ void MQTT_PingReq(void)
 #endif
 }
 
-// /**
-//  * Subscribe on the MQTT broker of the message in a topic
-//  * @param topic to be used to the set topic
-//  * @return NONE
-//  */
-// void MQTT_Sub(char *topic)
-// {
-//     unsigned char buf[256] = {0};
+/**
+ * Subscribe on the MQTT broker of the message in a topic
+ * @param topic to be used to the set topic
+ * @return NONE
+ */
+void MQTT_Sub(char *topic)
+{
+    unsigned char buf[256] = {0};
 
-//     MQTTString topicString = MQTTString_initializer;
-//     topicString.cstring = topic;
+    MQTTString topicString = MQTTString_initializer;
+    topicString.cstring = topic;
 
-//     int mqtt_len = MQTTSerialize_subscribe(buf, sizeof(buf), 0, 1, 1,
-//                                             &topicString, 0);
-//     SIM800_SendCommand("AT+CIPSEND\r\n", ">", CMD_DELAY);
-//     if(!SIM800_SendMQTT(buf, mqtt_len, "OK\r\n", CMD_DELAY))
-//     {
-//         osDelay(100);
-//         huart1.Instance->DR = 0b00011010;       //0x1A - OK
-//     }
-//     else
-//     {   
-//         osDelay(100);
-//         huart1.Instance->DR = 0b00011011;       //0x1B - CANCEL
-//     }
+    int mqtt_len = MQTTSerialize_subscribe(buf, sizeof(buf), 0, 1, 1,
+                                            &topicString, 0);
+    SIM800_SendCommand("AT+CIPSEND\r\n", ">", CMD_DELAY);
+    if(!SIM800_SendMQTT(buf, mqtt_len, "OK\r\n", CMD_DELAY))
+    {
+        osDelay(100);
+        huart1.Instance->DR = 0b00011010;       //0x1A - OK
+    }
+    else
+    {   
+        osDelay(100);
+        huart1.Instance->DR = 0b00011011;       //0x1B - CANCEL
+    }
 
-// #if FREERTOS == 1
-//     osDelay(100);
-// #else
-//     HAL_Delay(100);
-// #endif
-// }
+#if FREERTOS == 1
+    osDelay(100);
+#else
+    HAL_Delay(100);
+#endif
+}
 
-// /**
-//  * Receive message from MQTT broker
-//  * @param receive mqtt bufer
-//  * @return NONE
-//  */
-// void MQTT_Receive(unsigned char *buf)
-// {
-//     memset(SIM800.mqttReceive.topic, 0, sizeof(SIM800.mqttReceive.topic));
-//     memset(SIM800.mqttReceive.payload, 0, sizeof(SIM800.mqttReceive.payload));
-//     MQTTString receivedTopic;
-//     unsigned char *payload;
-//     MQTTDeserialize_publish(&SIM800.mqttReceive.dup, &SIM800.mqttReceive.qos, &SIM800.mqttReceive.retained,
-//                             &SIM800.mqttReceive.msgId,
-//                             &receivedTopic, &payload, &SIM800.mqttReceive.payloadLen, buf,
-//                             sizeof(buf));
-//     memcpy(SIM800.mqttReceive.topic, receivedTopic.lenstring.data, receivedTopic.lenstring.len);
-//     SIM800.mqttReceive.topicLen = receivedTopic.lenstring.len;
-//     memcpy(SIM800.mqttReceive.payload, payload, SIM800.mqttReceive.payloadLen);
-//     SIM800.mqttReceive.newEvent = 1;
-// }
+/**
+ * Receive message from MQTT broker
+ * @param receive mqtt bufer
+ * @return NONE
+ */
+void MQTT_Receive(unsigned char *buf)
+{
+    memset(SIM800.mqttReceive.topic, 0, sizeof(SIM800.mqttReceive.topic));
+    memset(SIM800.mqttReceive.payload, 0, sizeof(SIM800.mqttReceive.payload));
+    MQTTString receivedTopic;
+    unsigned char *payload;
+    MQTTDeserialize_publish(&SIM800.mqttReceive.dup, &SIM800.mqttReceive.qos, &SIM800.mqttReceive.retained,
+                            &SIM800.mqttReceive.msgId,
+                            &receivedTopic, &payload, &SIM800.mqttReceive.payloadLen, buf,
+                            sizeof(buf));
+    memcpy(SIM800.mqttReceive.topic, receivedTopic.lenstring.data, receivedTopic.lenstring.len);
+    SIM800.mqttReceive.topicLen = receivedTopic.lenstring.len;
+    memcpy(SIM800.mqttReceive.payload, payload, SIM800.mqttReceive.payloadLen);
+    SIM800.mqttReceive.newEvent = 1;
+}
