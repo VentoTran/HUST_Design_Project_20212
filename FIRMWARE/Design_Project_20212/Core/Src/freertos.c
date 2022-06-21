@@ -33,6 +33,8 @@
 #include "ds1307.h"
 #include "max30102.h"
 #include "debug.h"
+#include "stdlib.h"
+#include "math.h"
 
 /* USER CODE END Includes */
 
@@ -65,19 +67,21 @@ MPU6050_t MPU6050;
 RTC_t myRTC;
 Mode_t DeviceState = RUNNING;
 max30102_t MAX30102;
+uint16_t HeartRate = 0;
 
 volatile bool isTouch = false;
 
-static uint32_t IR_Value[200] = {0};
+static uint32_t IR_Value[250] = {0};
 static uint8_t IR_Count = 0;
-
+static uint32_t RD_Value[250] = {0};
+static uint8_t RD_Count = 0;
 
 /* USER CODE END Variables */
 /* Definitions for LCD_Task */
 osThreadId_t LCD_TaskHandle;
 const osThreadAttr_t LCD_Task_attributes = {
   .name = "LCD_Task",
-  .stack_size = 150 * 4,
+  .stack_size = 180 * 4,
   .priority = (osPriority_t) osPriorityHigh,
 };
 /* Definitions for SIM_Task */
@@ -182,6 +186,7 @@ void MX_FREERTOS_Init(void) {
 void LCDTASK(void *argument)
 {
   /* USER CODE BEGIN LCDTASK */
+  osThreadSuspend(LCD_TaskHandle);
   ILI9341_Unselect();
   ILI9341_TouchUnselect();
   osDelay(1000);
@@ -197,13 +202,13 @@ void LCDTASK(void *argument)
   for(;;)
   {
     // HAL_IWDG_Refresh(&hiwdg);
-    osDelay(100);
+    osDelay(50);
 //  ----------------------------------- Wait for event --------------------------------------------
     if (osSemaphoreAcquire(LCD_TouchHandle, portMAX_DELAY) == osOK)
     {
       if ((HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET) && (isTouch == true))
       {
-        osDelay(100);
+        osDelay(50);
         if (HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET)
         {
           while(ILI9341_TouchGetCoordinates(&y, &x) != true);
@@ -211,12 +216,12 @@ void LCDTASK(void *argument)
           x = 320 - x;
         }
         ILI9341_DrawPixel(x, y, ILI9341_WHITE);
-        osDelay(100);
+        osDelay(50);
       }
     }
     isTouch = false;
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    osDelay(1000);
+    osDelay(50);
   }
   /* USER CODE END LCDTASK */
 }
@@ -258,6 +263,7 @@ void SENSOR_Task(void *argument)
 {
   /* USER CODE BEGIN SENSOR_Task */
   // osThreadSuspend(SEN_TaskHandle);
+  osDelay(5000);
   while (MPU6050_Init(&hi2c1))
   {
     osDelay(50);
@@ -268,26 +274,26 @@ void SENSOR_Task(void *argument)
   max30102_init(&MAX30102, &hi2c1);
   max30102_reset(&MAX30102);
   max30102_clear_fifo(&MAX30102);
-  max30102_set_fifo_config(&MAX30102, max30102_smp_ave_8, 1, 7);
+  max30102_set_fifo_config(&MAX30102, max30102_smp_ave_8, 1, 5);
   
   // Sensor settings
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
-  max30102_set_adc_resolution(&MAX30102, max30102_adc_4096);
-  max30102_set_sampling_rate(&MAX30102, max30102_sr_800);
+  max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
+  max30102_set_sampling_rate(&MAX30102, max30102_sr_1600);
   max30102_set_led_current_1(&MAX30102, 6.2);
   max30102_set_led_current_2(&MAX30102, 6.2);
 
   // Enter SpO2 mode
-  max30102_set_mode(&MAX30102, max30102_multi_led);
+  max30102_set_mode(&MAX30102, max30102_spo2);
   max30102_set_a_full(&MAX30102, 0);
   
   // Initiate 1 temperature measurement
   max30102_set_die_temp_en(&MAX30102, 0);
   max30102_set_die_temp_rdy(&MAX30102, 0);
   
-  // uint8_t en_reg[2] = {0};
-  // max30102_read(&MAX30102, 0x00, en_reg, 1);
-  // osDelay(500);
+  uint8_t en_reg[2] = {0};
+  max30102_read(&MAX30102, 0x00, en_reg, 1);
+  osDelay(100);
 
   // myRTC.Date.year = 22;
   // myRTC.Date.month = 6;
@@ -301,19 +307,23 @@ void SENSOR_Task(void *argument)
 
   // ds1307_set_current_date(&myRTC.Date);
   // ds1307_set_current_time(&myRTC.Time);
+  uint8_t count = 0;
+  bool isDataValid = true;
 
+
+  uint8_t npeak = 0;
+  uint8_t locPeak[5] = {0};
   // osDelay(500);
-  int a = 0;
   /* Infinite loop */
   for(;;)
   {
-    // MPU6050_Read_All(&hi2c1, &MPU6050);
-    // if ((MPU6050.Ax == 0.0) && (MPU6050.Ay == 0.0) && (MPU6050.Az == 0.0))
-    // {
-    //   MPU6050_Init(&hi2c1);
-    //   osDelay(100);
-    //   MPU6050_Read_All(&hi2c1, &MPU6050);
-    // }
+    MPU6050_Read_All(&hi2c1, &MPU6050);
+    if ((MPU6050.Ax == 0.0) && (MPU6050.Ay == 0.0) && (MPU6050.Az == 0.0))
+    {
+      MPU6050_Init(&hi2c1);
+      osDelay(100);
+      MPU6050_Read_All(&hi2c1, &MPU6050);
+    }
     // // osDelay(1000);
     // ds1307_get_current_date(&myRTC.Date);
     // ds1307_get_current_time(&myRTC.Time);
@@ -323,23 +333,84 @@ void SENSOR_Task(void *argument)
     // logPC("HELLO! Now is %d/%d/%d %d:%d:%d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
     // float Ax_f = *(float*)(&MPU6050.KalmanAngleX);
     // int8_t Ax_8[] = {(int8_t)(MPU6050.KalmanAngleX)};
-    // char data2send[] =  {
-    //                     (uint8_t)(Ax_32 >> 24) & 0xFF, (uint8_t)(Ax_32 >> 16) & 0xFF, \
-    //                     (uint8_t)(Ax_32 >> 8) & 0xFF, (uint8_t)(Ax_32 >> 0) & 0xFF
-    //                     };
+    // char data2send[] =  
+    // {
+    //   (uint8_t)(Ax_32 >> 24) & 0xFF, (uint8_t)(Ax_32 >> 16) & 0xFF, (uint8_t)(Ax_32 >> 8) & 0xFF, (uint8_t)(Ax_32 >> 0) & 0xFF
+    // };
 
     // HAL_UART_Transmit(UART_DEBUG, Ax_8, 1, 100);
     
     max30102_read_fifo(&MAX30102);
-    // logPC(Ax_8);
-    // logPC("value: %2.2lf", MPU6050.KalmanAngleX);
-    uint8_t count = 0;
+
+    if (IR_Count >= 200)
+    {
+      isDataValid = true;
+      for (uint8_t i = 0; i < 200; i++)
+      {
+        if (IR_Value[i] < 45000*5)
+        {
+          isDataValid = false;
+          i = 200;
+        }
+        else
+        {
+          if ((i >= 2) && (i <= 197))
+          {
+            IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
+            IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
+            IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
+            RD_Value[i-1] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i]) / 3;
+            RD_Value[i] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i] + RD_Value[i+1] + RD_Value[i+2]) / 5;
+            RD_Value[i+1] = (RD_Value[i+2] + RD_Value[i+1] + RD_Value[i]) / 3;
+          }
+          // logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
+        }
+      }
+      
+      if (isDataValid == true)
+      {
+        // HeartRate = getHeartRate(&MAX30102, IR_Value);
+        npeak = 0;
+        memset(locPeak, '\0', sizeof(locPeak));
+
+        maxim_find_peaks(locPeak, &npeak, IR_Value, (uint8_t)200, (uint32_t)(45000*5), (uint8_t)50, (uint8_t)5);
+
+        // for (uint8_t i = 0; i < npeak; i++)
+        // {
+        //   deltaLoc += locPeak[i+1] - locPeak[i];
+        // }
+        uint32_t gap = 0;
+        for (int i = 0; i < npeak-1; i++)
+        {
+          gap = gap + (locPeak[i+1] - locPeak[i]);
+        }
+
+        float avr_gap = (float)gap / npeak;
+        
+        logPC("%d", (uint8_t)avr_gap);
+
+        HeartRate = (uint16_t)(60000 / (avr_gap * MAX30102.deltaTSample));
+
+      }
+
+      memset(IR_Value, '\0', sizeof(IR_Value));
+      memset(RD_Value, '\0', sizeof(RD_Value));
+      IR_Count = 0;
+      RD_Count = 0;
+    }
+
+    count = 0;
     while (MAX30102._ir_samples[count] != '\0')
     {
       IR_Value[IR_Count++] = MAX30102._ir_samples[count++];
     }
+    count = 0;
+    while (MAX30102._red_samples[count] != '\0')
+    {
+      RD_Value[RD_Count++] = MAX30102._red_samples[count++];
+    }
 
-    osDelay(100);
+    osDelay(50);
   }
   /* USER CODE END SENSOR_Task */
 }
