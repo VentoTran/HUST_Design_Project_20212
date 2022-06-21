@@ -16,27 +16,32 @@ void ILI9341_Unselect()
 static void ILI9341_Reset()
 {
     HAL_GPIO_WritePin(ILI9341_RES_GPIO_Port, ILI9341_RES_Pin, GPIO_PIN_RESET);
-    HAL_Delay(10);
+    HAL_Delay(200);
     HAL_GPIO_WritePin(ILI9341_RES_GPIO_Port, ILI9341_RES_Pin, GPIO_PIN_SET);
 }
 
 static void ILI9341_WriteCommand(uint8_t cmd)
 {
+    // ILI9341_Select();
     HAL_GPIO_WritePin(ILI9341_DC_GPIO_Port, ILI9341_DC_Pin, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&ILI9341_SPI_PORT, &cmd, sizeof(cmd), HAL_MAX_DELAY);
+    // ILI9341_Unselect();
 }
 
 static void ILI9341_WriteData(uint8_t* buff, size_t buff_size)
 {
+    // ILI9341_Select();
     HAL_GPIO_WritePin(ILI9341_DC_GPIO_Port, ILI9341_DC_Pin, GPIO_PIN_SET);
 
     // split data in small chunks because HAL can't send more then 64K at once
-    while(buff_size > 0) {
+    while(buff_size > 0) 
+    {
         uint16_t chunk_size = buff_size > 32768 ? 32768 : buff_size;
         HAL_SPI_Transmit(&ILI9341_SPI_PORT, buff, chunk_size, HAL_MAX_DELAY);
         buff += chunk_size;
         buff_size -= chunk_size;
     }
+    // ILI9341_Unselect();
 }
 
 static void ILI9341_SetAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
@@ -68,7 +73,7 @@ void ILI9341_Init()
 
     // SOFTWARE RESET
     ILI9341_WriteCommand(0x01);
-    HAL_Delay(1000);
+    HAL_Delay(200);
         
     // POWER CONTROL A
     ILI9341_WriteCommand(0xCB);

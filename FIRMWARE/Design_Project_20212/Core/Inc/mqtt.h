@@ -179,15 +179,15 @@ bool MQTT_Connect(void);
 
 bool MQTT_Pub(char *topic, char *payload);
 
-void MQTT_PubUint8(char *topic, uint8_t data);
+void MQTT_PubUint8(char *topic, uint8_t payload);
 
-void MQTT_PubUint16(char *topic, uint16_t data);
+void MQTT_PubUint16(char *topic, uint16_t payload);
 
-void MQTT_PubUint32(char *topic, uint32_t data);
+void MQTT_PubUint32(char *topic, uint32_t payload);
 
 void MQTT_PubFloat(char *topic, float payload, uint8_t digit);
 
-void MQTT_PubDouble(char *topic, double data, uint8_t digit);
+void MQTT_PubDouble(char *topic, double payload, uint8_t digit);
 
 void MQTT_PingReq(void);
 

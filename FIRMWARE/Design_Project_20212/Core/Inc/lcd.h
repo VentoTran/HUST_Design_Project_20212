@@ -15,7 +15,7 @@
 #define ILI9341_MADCTL_MH  0x04
 
 /*** Redefine if necessary ***/
-#define ILI9341_SPI_PORT hspi1
+#define ILI9341_SPI_PORT hspi2
 extern SPI_HandleTypeDef ILI9341_SPI_PORT;
 
 #define ILI9341_RES_Pin       GPIO_PIN_5
@@ -28,7 +28,7 @@ extern SPI_HandleTypeDef ILI9341_SPI_PORT;
 #define ILI9341_LED_GPIO_Port GPIOB
 
 
-#define ROTATION    1
+#define ROTATION    2
 
 #if ROTATION == 0
 #define ILI9341_WIDTH  240
@@ -54,9 +54,6 @@ extern SPI_HandleTypeDef ILI9341_SPI_PORT;
 
 /****************************/
 
-#define MAIN_PAGE       0
-#define CONTROL_PAGE    1
-#define DATA_PAGE       2
 
 /****************************/
 
@@ -87,7 +84,6 @@ extern SPI_HandleTypeDef ILI9341_SPI_PORT;
 #define ILI9341_LBBLUE      0X2B12
 
 #define ILI9341_COLOR565(r, g, b) (((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b & 0xF8) >> 3))
-
 
 
 

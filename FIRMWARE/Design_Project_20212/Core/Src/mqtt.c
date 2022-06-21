@@ -137,20 +137,52 @@ bool MQTT_Pub(char *topic, char *payload)
     return state;
 }
 
+/**
+ * @brief 
+ * 
+ * @param topic 
+ * @param payload 
+ */
+void MQTT_PubUint8(char *topic, uint8_t payload)
+{
+    char str[32] = {0};
+    sprintf(str, "%u", payload);
+    MQTT_Pub(topic, str);
+}
 
-void MQTT_PubUint8(char *topic, uint8_t data);
+
+void MQTT_PubUint16(char *topic, uint16_t payload);
 
 
-void MQTT_PubUint16(char *topic, uint16_t data);
+void MQTT_PubUint32(char *topic, uint32_t payload);
 
+/**
+ * @brief 
+ * 
+ * @param topic 
+ * @param payload 
+ * @param digit 
+ */
+void MQTT_PubFloat(char *topic, float payload, uint8_t digit)
+{
+    char str[32] = {0};
+    ftoa(payload, str, digit);
+    MQTT_Pub(topic, str);
+}
 
-void MQTT_PubUint32(char *topic, uint32_t data);
-
-
-void MQTT_PubFloat(char *topic, float payload, uint8_t digit);
-
-
-void MQTT_PubDouble(char *topic, double data, uint8_t digit);
+/**
+ * @brief 
+ * 
+ * @param topic 
+ * @param payload 
+ * @param digit 
+ */
+void MQTT_PubDouble(char *topic, double payload, uint8_t digit)
+{
+    char str[32] = {0};
+    ftoa(payload, str, digit);
+    MQTT_Pub(topic, str);
+}
 
 
 void MQTT_PingReq(void);
