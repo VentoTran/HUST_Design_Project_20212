@@ -123,6 +123,14 @@ typedef enum max30102_multi_led_ctrl_t
     max30102_led_ir
 } max30102_multi_led_ctrl_t;
 
+typedef struct
+{
+    uint8_t peakLoc[10];
+    uint8_t nPeak;
+    uint8_t minGap;
+    uint8_t maxPeak;
+} Peak_t;
+
 typedef struct max30102_t
 {
     I2C_HandleTypeDef *_ui2c;
@@ -131,6 +139,7 @@ typedef struct max30102_t
     uint8_t _interrupt_flag;
     uint32_t deltaTSample;
     uint32_t lastTSample;
+    Peak_t Peak;
 } max30102_t;
 
 typedef struct
@@ -142,6 +151,8 @@ typedef struct
     double bias;
     double P[2][2];
 } Kalman_t_t;
+
+
 
 __weak void max30102_plot(uint32_t ir_sample, uint32_t red_sample);
 
@@ -184,10 +195,7 @@ void max30102_read_temp(max30102_t *obj, int8_t *temp_int, uint8_t *temp_frac);
 
 uint32_t Kalman_getData(uint32_t newData, uint32_t newRate, uint32_t dt);
 
-void maxim_find_peaks(uint8_t *pn_locs, uint8_t *n_npks, uint32_t *pn_x, uint8_t n_size, uint32_t n_min_height, uint8_t n_min_distance, uint8_t n_max_num);
-void maxim_peaks_above_min_height(uint8_t *pn_locs, uint8_t *n_npks, uint32_t *pn_x, uint8_t n_size, uint32_t n_min_height);
-void maxim_remove_close_peaks(uint8_t *pn_locs, uint8_t *pn_npks, uint32_t *pn_x, uint8_t n_min_distance);
-void maxim_sort_ascend(uint8_t *pn_x, uint8_t n_size);
-void maxim_sort_indices_descend(uint32_t *pn_x, uint8_t *pn_indx, uint8_t n_size);
+void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size);
+
 
 #endif

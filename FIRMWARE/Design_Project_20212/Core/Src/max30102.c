@@ -456,69 +456,41 @@ uint32_t Kalman_getData(uint32_t newData, uint32_t newRate, uint32_t dt)
     return Kalman.data;
 };
 
-uint8_t getHeartRate(max30102_t *obj, uint32_t* Data)
+/**
+ * @brief 
+ * 
+ * @param obj 
+ * @param pn_x 
+ * @param n_size 
+ */
+void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
 {
-    uint8_t HR = 0;
-    uint8_t npeak = 0;
-    uint8_t locPeak[5] = {0};
-    uint16_t deltaLoc = 0;
+    uint8_t i = 1, n_width = 1;
+    obj->Peak.nPeak = 0;
+    uint32_t n_min_height = 0;
+    uint64_t sum = 0;
 
-    maxim_find_peaks(locPeak, &npeak, Data, 200, 45000*5, 40, 5);
-
-    if (npeak <= 1)
+    for (uint8_t k = 0; k < n_size; k++)
     {
-        return HR;
+        sum += pn_x[k];
     }
 
-    for (uint8_t i = 0; i < npeak; i++)
-    {
-        deltaLoc += locPeak[i+1] - locPeak[i];
-    }
-    deltaLoc /= npeak;
+    n_min_height = (uint32_t) (sum / n_size);
 
-    HR = 60000 / (deltaLoc * obj->deltaTSample);
-    
-    return HR;
-}
-
-/**
-* \brief        Find peaks
-* \par          Details
-*               Find at most MAX_NUM peaks above MIN_HEIGHT separated by at least MIN_DISTANCE
-*
-* \retval       None
-*/
-void maxim_find_peaks(uint8_t *pn_locs, uint8_t *n_npks, uint32_t *pn_x, uint8_t n_size, uint32_t n_min_height, uint8_t n_min_distance, uint8_t n_max_num)
-{
-    maxim_peaks_above_min_height(pn_locs, n_npks, pn_x, n_size, n_min_height);
-    // maxim_remove_close_peaks(pn_locs, n_npks, pn_x, n_min_distance);
-    *n_npks = ((*n_npks > n_max_num)? (n_max_num):(*n_npks));
-}
-
-/**
-* \brief        Find peaks above n_min_height
-* \par          Details
-*               Find all peaks above MIN_HEIGHT
-*
-* \retval       None
-*/
-void maxim_peaks_above_min_height(uint8_t *pn_locs, uint8_t *n_npks, uint32_t *pn_x, uint8_t n_size, uint32_t n_min_height)
-{
-    uint8_t i = 1, n_width;
-    *n_npks = 0;
-
-    while (i < n_size-1)
+    while (i < (n_size-1))
     {
         if ((pn_x[i] > n_min_height) && (pn_x[i] > pn_x[i-1]))
-        {      // find left edge of potential peaks
+        {      
+            // find left edge of potential peaks
             n_width = 1;
             while ((i+n_width < n_size) && (pn_x[i] == pn_x[i+n_width]))
             {
                 n_width++;
             }  // find flat peaks
-            if ((pn_x[i] > pn_x[i+n_width]) && ((*n_npks) < 15))
-            {      // find right edge of peaks
-                pn_locs[(*n_npks)++] = i;    
+            if ((pn_x[i] > pn_x[i+n_width]) && ((obj->Peak.nPeak) < 15))
+            {      
+                // find right edge of peaks
+                obj->Peak.peakLoc[(obj->Peak.nPeak)++] = i;    
                 // for flat peaks, peak location is left edge
                 i += n_width+1;
             }
@@ -532,80 +504,96 @@ void maxim_peaks_above_min_height(uint8_t *pn_locs, uint8_t *n_npks, uint32_t *p
             i++;
         }
     }
-}
 
-/**
-* \brief        Remove peaks
-* \par          Details
-*               Remove peaks separated by less than MIN_DISTANCE
-*
-* \retval       None
-*/
-void maxim_remove_close_peaks(uint8_t *pn_locs, uint8_t *pn_npks, uint32_t *pn_x, uint8_t n_min_distance)
-{
-    uint8_t n_old_npks, j, n_dist, i;
-    /* Order peaks from large to small */
-    maxim_sort_indices_descend(pn_x, pn_locs, *pn_npks);
+    uint32_t peak_value[10] = {0};
+    uint32_t tempVal = 0;
+    uint8_t tempLoc = 0;
+    uint8_t gap = 0;
 
-    for (i = 0; i < *pn_npks; i++)
+    for (uint8_t i = 0; i < obj->Peak.nPeak; i++)
     {
-        n_old_npks = *pn_npks;
-        *pn_npks = i;
-        for (j = i; j < n_old_npks; j++)
+        peak_value[i] = pn_x[obj->Peak.peakLoc[i]];
+    }
+
+    for (uint8_t i = 0; i < (obj->Peak.nPeak - 1); i++)
+    {
+        tempVal = peak_value[i];
+        for (uint8_t j = (i+1); j < obj->Peak.nPeak; j++)
         {
-            n_dist = abs(pn_locs[j] - ((i == 1)? (1):(pn_locs[i]))); // lag-zero peak of autocorr is at index -1
-            if (n_dist > n_min_distance)
+            if (peak_value[j] > tempVal)
             {
-                pn_locs[(*pn_npks)++] = pn_locs[j];
+                peak_value[i] = peak_value[j];
+                peak_value[j] = tempVal;
+                tempVal = peak_value[i];
+                tempLoc = obj->Peak.peakLoc[i];
+                obj->Peak.peakLoc[i] = obj->Peak.peakLoc[j];
+                obj->Peak.peakLoc[j] = tempLoc;
             }
         }
     }
 
-    // Resort indices int32_to ascending order
-    maxim_sort_ascend(pn_locs, *pn_npks);
+    uint8_t bound[5][2] = {{0}};
+    uint8_t validPeak = 1;
+    if (obj->Peak.peakLoc[0] <= obj->Peak.minGap)
+        bound[0][0] = 0;
+    else
+        bound[0][0] = obj->Peak.peakLoc[0] - obj->Peak.minGap;
+    if ((199 - obj->Peak.peakLoc[0]) <= obj->Peak.minGap)
+        bound[0][1] = 199;
+    else
+        bound[0][1] = obj->Peak.peakLoc[0] + obj->Peak.minGap;
+    
+    for (uint8_t i = 1; i < obj->Peak.nPeak; i++)
+    {
+        for (uint8_t j = 0; j < validPeak; j++)
+        {
+            if (obj->Peak.peakLoc[i] > bound[j][0] && (obj->Peak.peakLoc[i]) < bound[j][1])
+            {
+                obj->Peak.peakLoc[i] = 255;
+            }
+        }
+        
+        if (obj->Peak.peakLoc[i] != 255)
+        {
+            if (obj->Peak.peakLoc[i] <= obj->Peak.minGap)
+                bound[validPeak][0] = 0;
+            else
+                bound[validPeak][0] = obj->Peak.peakLoc[i] - obj->Peak.minGap;
+            if ((199 - obj->Peak.peakLoc[i]) <= obj->Peak.minGap)
+                bound[validPeak][1] = 199;
+            else
+                bound[validPeak][1] = obj->Peak.peakLoc[i] + obj->Peak.minGap;
+            validPeak++;
+        }
+    }
+
+    for (uint8_t i = 0; i < (obj->Peak.nPeak - 1); i++)
+    {
+        tempLoc = obj->Peak.peakLoc[i];
+        for (uint8_t j = (i+1); j < obj->Peak.nPeak; j++)
+        {
+            if (obj->Peak.peakLoc[j] < tempLoc)
+            {
+                obj->Peak.peakLoc[i] = obj->Peak.peakLoc[j];
+                obj->Peak.peakLoc[j] = tempLoc;
+                tempLoc = obj->Peak.peakLoc[i];
+            }
+        }
+    }
+
+    for (uint8_t i = 0; i < obj->Peak.nPeak; i++)
+    {
+        if (obj->Peak.peakLoc[i] == 255)
+        {
+            obj->Peak.peakLoc[i] = '\0';
+        }
+    }
+
+    obj->Peak.nPeak = validPeak;
+
+    obj->Peak.nPeak = ((obj->Peak.nPeak > obj->Peak.maxPeak)? (obj->Peak.maxPeak):(obj->Peak.nPeak));
 }
 
-/**
-* \brief        Sort array
-* \par          Details
-*               Sort array in ascending order (insertion sort algorithm)
-*
-* \retval       None
-*/
-void maxim_sort_ascend(uint8_t *pn_x, uint8_t n_size) 
-{
-    uint8_t i, j, n_temp;
-    for (i = 1; i < n_size; i++) 
-    {
-        n_temp = pn_x[i];
-        for (j = i; (j > 0) && (n_temp < pn_x[j-1]); j--)
-        {
-            pn_x[j] = pn_x[j-1];
-        }
-        pn_x[j] = n_temp;
-    }
-}
-
-/**
-* \brief        Sort indices
-* \par          Details
-*               Sort indices according to descending order (insertion sort algorithm)
-*
-* \retval       None
-*/ 
-void maxim_sort_indices_descend(uint32_t *pn_x, uint8_t *pn_indx, uint8_t n_size)
-{
-    uint8_t i, j, n_temp;
-    for (i = 1; i < n_size; i++)
-    {
-        n_temp = pn_indx[i];
-        for (j = i; (j > 0) && (pn_x[n_temp] > pn_x[pn_indx[j-1]]); j--)
-        {
-            pn_indx[j] = pn_indx[j-1];
-        }
-        pn_indx[j] = n_temp;
-    }
-}
 
 
 //---------------------------------------------------------------------------------------------------

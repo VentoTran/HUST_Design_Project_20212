@@ -63,14 +63,16 @@ typedef enum
 // extern IWDG_HandleTypeDef hiwdg;
 extern I2C_HandleTypeDef hi2c1;
 
-MPU6050_t MPU6050;
-RTC_t myRTC;
-Mode_t DeviceState = RUNNING;
-max30102_t MAX30102;
-uint16_t HeartRate = 0;
+static MPU6050_t MPU6050;
+static RTC_t myRTC;
+static Mode_t DeviceState = RUNNING;
+
 
 volatile bool isTouch = false;
 
+static max30102_t MAX30102;
+static uint8_t HeartRate = 0;
+static uint8_t tHR[4] = {0};
 static uint32_t IR_Value[250] = {0};
 static uint8_t IR_Count = 0;
 static uint32_t RD_Value[250] = {0};
@@ -81,28 +83,28 @@ static uint8_t RD_Count = 0;
 osThreadId_t LCD_TaskHandle;
 const osThreadAttr_t LCD_Task_attributes = {
   .name = "LCD_Task",
-  .stack_size = 180 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
+  .stack_size = 150 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SIM_Task */
 osThreadId_t SIM_TaskHandle;
 const osThreadAttr_t SIM_Task_attributes = {
   .name = "SIM_Task",
-  .stack_size = 180 * 4,
+  .stack_size = 150 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SEN_Task */
 osThreadId_t SEN_TaskHandle;
 const osThreadAttr_t SEN_Task_attributes = {
   .name = "SEN_Task",
-  .stack_size = 100 * 4,
+  .stack_size = 150 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for GPS_Task */
 osThreadId_t GPS_TaskHandle;
 const osThreadAttr_t GPS_Task_attributes = {
   .name = "GPS_Task",
-  .stack_size = 180 * 4,
+  .stack_size = 150 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for LCD_Touch */
@@ -186,7 +188,7 @@ void MX_FREERTOS_Init(void) {
 void LCDTASK(void *argument)
 {
   /* USER CODE BEGIN LCDTASK */
-  osThreadSuspend(LCD_TaskHandle);
+  // osThreadSuspend(LCD_TaskHandle);
   ILI9341_Unselect();
   ILI9341_TouchUnselect();
   osDelay(1000);
@@ -215,6 +217,7 @@ void LCDTASK(void *argument)
           y = 240 - y;
           x = 320 - x;
         }
+        logPC("Touch Coordinate: (%i,%i)\n", x, y);
         ILI9341_DrawPixel(x, y, ILI9341_WHITE);
         osDelay(50);
       }
@@ -263,7 +266,7 @@ void SENSOR_Task(void *argument)
 {
   /* USER CODE BEGIN SENSOR_Task */
   // osThreadSuspend(SEN_TaskHandle);
-  osDelay(5000);
+  // osDelay(5000);
   while (MPU6050_Init(&hi2c1))
   {
     osDelay(50);
@@ -279,7 +282,7 @@ void SENSOR_Task(void *argument)
   // Sensor settings
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
-  max30102_set_sampling_rate(&MAX30102, max30102_sr_1600);
+  max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
   max30102_set_led_current_1(&MAX30102, 6.2);
   max30102_set_led_current_2(&MAX30102, 6.2);
 
@@ -307,12 +310,16 @@ void SENSOR_Task(void *argument)
 
   // ds1307_set_current_date(&myRTC.Date);
   // ds1307_set_current_time(&myRTC.Time);
+
   uint8_t count = 0;
-  bool isDataValid = true;
+  bool isDataValid = false;
+  MAX30102.Peak.maxPeak = 7;
+  MAX30102.Peak.minGap = 40;
+  MAX30102.Peak.nPeak = 0;
+  memset(MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
+  memset(tHR, '\0', sizeof(tHR));
+  uint32_t lastTime = HAL_GetTick();
 
-
-  uint8_t npeak = 0;
-  uint8_t locPeak[5] = {0};
   // osDelay(500);
   /* Infinite loop */
   for(;;)
@@ -324,33 +331,29 @@ void SENSOR_Task(void *argument)
       osDelay(100);
       MPU6050_Read_All(&hi2c1, &MPU6050);
     }
-    // // osDelay(1000);
-    // ds1307_get_current_date(&myRTC.Date);
-    // ds1307_get_current_time(&myRTC.Time);
-    // osDelay(1000);
 
-    // osDelay(1000);
-    // logPC("HELLO! Now is %d/%d/%d %d:%d:%d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
-    // float Ax_f = *(float*)(&MPU6050.KalmanAngleX);
-    // int8_t Ax_8[] = {(int8_t)(MPU6050.KalmanAngleX)};
-    // char data2send[] =  
-    // {
-    //   (uint8_t)(Ax_32 >> 24) & 0xFF, (uint8_t)(Ax_32 >> 16) & 0xFF, (uint8_t)(Ax_32 >> 8) & 0xFF, (uint8_t)(Ax_32 >> 0) & 0xFF
-    // };
+    ds1307_get_current_date(&myRTC.Date);
+    ds1307_get_current_time(&myRTC.Time);
 
-    // HAL_UART_Transmit(UART_DEBUG, Ax_8, 1, 100);
-    
+    if ((HAL_GetTick() - lastTime) >= 2000)
+    {
+      logPC("HELLO! Now is %d/%d/%d %d:%d:%d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
+      lastTime = HAL_GetTick();
+    }
+#if PLOT == 1
+    logPC("$%d %d;", (uint8_t)MPU6050.KalmanAngleX, (uint8_t)MPU6050.KalmanAngleY);
+#endif
+
     max30102_read_fifo(&MAX30102);
 
-    if (IR_Count >= 200)
+    if ((IR_Count >= 200) || (RD_Count >= 200))
     {
       isDataValid = true;
-      for (uint8_t i = 0; i < 200; i++)
+      for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
       {
         if (IR_Value[i] < 45000*5)
         {
           isDataValid = false;
-          i = 200;
         }
         else
         {
@@ -363,34 +366,41 @@ void SENSOR_Task(void *argument)
             RD_Value[i] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i] + RD_Value[i+1] + RD_Value[i+2]) / 5;
             RD_Value[i+1] = (RD_Value[i+2] + RD_Value[i+1] + RD_Value[i]) / 3;
           }
-          // logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
+#if PLOT == 1
+          logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
+#endif
         }
       }
-      
+
       if (isDataValid == true)
       {
         // HeartRate = getHeartRate(&MAX30102, IR_Value);
-        npeak = 0;
-        memset(locPeak, '\0', sizeof(locPeak));
+        MAX30102.Peak.nPeak = 0;
+        memset(MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
 
-        maxim_find_peaks(locPeak, &npeak, IR_Value, (uint8_t)200, (uint32_t)(45000*5), (uint8_t)50, (uint8_t)5);
+        maxim_find_peaks(&MAX30102, IR_Value, (uint8_t)200);
 
-        // for (uint8_t i = 0; i < npeak; i++)
-        // {
-        //   deltaLoc += locPeak[i+1] - locPeak[i];
-        // }
-        uint32_t gap = 0;
-        for (int i = 0; i < npeak-1; i++)
+        uint32_t gap = 1;
+        for (int i = 0; i < (MAX30102.Peak.nPeak-1); i++)
         {
-          gap = gap + (locPeak[i+1] - locPeak[i]);
+          gap = gap + (MAX30102.Peak.peakLoc[i+1] - MAX30102.Peak.peakLoc[i]);
         }
+        // logPC("%d", (uint8_t)avr_gap);
 
-        float avr_gap = (float)gap / npeak;
-        
-        logPC("%d", (uint8_t)avr_gap);
-
-        HeartRate = (uint16_t)(60000 / (avr_gap * MAX30102.deltaTSample));
-
+        HeartRate = (uint8_t)((60000.0 * MAX30102.Peak.nPeak) / (gap * (MAX30102.deltaTSample + 7)));
+        if ((HeartRate >= 55) && (HeartRate <= 140))
+        {
+          tHR[0] = tHR[1];
+          tHR[1] = tHR[2];
+          tHR[2] = tHR[3];
+          tHR[3] = HeartRate;
+        }
+        if (tHR[0] != '\0')
+        {
+          HeartRate = (uint8_t)((tHR[0] + tHR[1] + tHR[2] + tHR[3]) / 4);
+          logPC("Heart Rate: %d BPM\n", HeartRate);
+        }
+        osDelay(50);
       }
 
       memset(IR_Value, '\0', sizeof(IR_Value));
@@ -400,17 +410,16 @@ void SENSOR_Task(void *argument)
     }
 
     count = 0;
-    while (MAX30102._ir_samples[count] != '\0')
+    while ((MAX30102._ir_samples[count] != '\0') && (MAX30102._red_samples[count] != '\0'))
     {
-      IR_Value[IR_Count++] = MAX30102._ir_samples[count++];
-    }
-    count = 0;
-    while (MAX30102._red_samples[count] != '\0')
-    {
-      RD_Value[RD_Count++] = MAX30102._red_samples[count++];
+      IR_Value[IR_Count++] = MAX30102._ir_samples[count];
+      RD_Value[RD_Count++] = MAX30102._red_samples[count];
+      count++;
     }
 
     osDelay(50);
+  
+    
   }
   /* USER CODE END SENSOR_Task */
 }

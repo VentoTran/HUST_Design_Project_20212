@@ -17,6 +17,9 @@
 
 #define UART_DEBUG  &huart1
 
+#define DEBUG   1
+#define PLOT    1
+
 void logPC(const char *fmt, ...);
 
 

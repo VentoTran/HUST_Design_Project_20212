@@ -18,6 +18,7 @@
 #include <string.h>
 
 
+#if DEBUG == 1
 /**
  * @brief 
  * 
@@ -32,7 +33,6 @@ void vprint(const char *fmt, va_list argp)
         HAL_UART_Transmit(UART_DEBUG, (uint8_t*)string, strlen(string), 100); // send message via UART
     }
 }
-
 /**
  * @brief custom printf() function
  * 
@@ -46,6 +46,12 @@ void logPC(const char *fmt, ...)
     vprint(fmt, argp);
     va_end(argp);
 }
+#else
+void logPC(const char *fmt, ...)
+{
+    UNUSED(fmt);
+}
+#endif
 
 
 // int fputc(int ch, FILE *f) 
