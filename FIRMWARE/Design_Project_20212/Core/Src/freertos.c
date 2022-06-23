@@ -250,7 +250,7 @@ void SIMTASK(void *argument)
   SIM_Init();
   osDelay(5000);
   SIM_startGPRS();
-  osDelay(2000);
+  osDelay(500);
   MQTT.mqttServer.host = "test.mosquitto.org";
   MQTT.mqttServer.port = 1883;
   MQTT.mqttClient.username = "";
@@ -260,7 +260,10 @@ void SIMTASK(void *argument)
   MQTT_Connect();
   osDelay(1000);
   MQTT_Pub("mandevices/running", "1");
-  osDelay(1000);
+  osDelay(500);
+  MQTT_PingReq();
+  osDelay(500);
+  MQTT_Sub("mandevices/pingtest");
   // SIM_sendSMS("0914989855", "HELLO :P");
   /* Infinite loop */
   for(;;)
@@ -270,7 +273,12 @@ void SIMTASK(void *argument)
     osDelay(500);
     // MQTT_Connect();
     MQTT_Pub("mandevices/running", "1");
-    osDelay(10000);
+    osDelay(500);
+    if (MQTT.mqttReceive.newEvent == 1)
+    {
+      logPC("MQTT Received from topic \"%s\", message is \"%s\"\n", MQTT.mqttReceive.topic, MQTT.mqttReceive.payload);
+      MQTT.mqttReceive.newEvent = 0;
+    }
   }
   /* USER CODE END SIMTASK */
 }

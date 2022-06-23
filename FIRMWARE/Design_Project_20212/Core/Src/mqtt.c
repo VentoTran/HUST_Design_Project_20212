@@ -42,7 +42,7 @@ bool MQTT_SendMQTT(char* mqtt, uint8_t len, char* response)
 
     HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)mqtt, (uint16_t)len);
 
-    osDelay(500);
+    osDelay(CMD_DELAY_VERYSHORT);
 
     HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)temp, (uint16_t)(1));
 
@@ -61,6 +61,7 @@ bool MQTT_SendMQTT(char* mqtt, uint8_t len, char* response)
     if (strstr(rx_buffer, response) != NULL)
     {
         SIM_clearRX();
+        SIM_RX_STATUS = SIM_RX_START;
         return true;
     }
     SIM_clearRX();
@@ -125,6 +126,7 @@ bool MQTT_Connect(void)
 #else
         HAL_Delay(CMD_DELAY_VERYSHORT);
 #endif
+        SIM_clearRX();
         return false;
     }
     return false;
@@ -161,6 +163,7 @@ bool MQTT_Pub(char *topic, char *payload)
         // osDelay(CMD_DELAY_VERYSHORT);
         return state;
     }
+    SIM_clearRX();
     return false;
 }
 
@@ -233,9 +236,11 @@ bool MQTT_PingReq(void)
     {
         state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
         osDelay(100);
+        SIM_clearRX();
         return state;
     }
-    return state;
+    SIM_clearRX();
+    return false;
 }
 
 /**
@@ -264,8 +269,10 @@ bool MQTT_Sub(char *topic)
     {
         state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
         osDelay(100);
+        SIM_clearRX();
         return state;
     }
+    SIM_clearRX();
 	return false;
 }
 

@@ -21,6 +21,8 @@
 
 #if USE_MQTT == 1
 #include "mqtt.h"
+static bool isReceivingMQTT = false;
+static uint16_t MQTTByteCount = 0;
 #endif
 
 volatile SIM_RX_t SIM_RX_STATUS = SIM_RX_START;
@@ -33,16 +35,21 @@ static uint8_t rx_index = 0;
 uint8_t rx_buffer[200] = {0};
 
 
-
+/**
+ * @brief Initialize SIM module
+ * 
+ * @return true if successful,
+ * @return false if fail
+ */
 bool SIM_Init(void)
 {   
-    SIM_sendATCommand("ATE0\r\n");
+    // SIM_sendATCommand("ATE0\r\n");
     osDelay(200);
     if (HAL_UART_Abort_IT(UART_SIM) == HAL_OK)
     {
         HAL_UART_Receive_IT(UART_SIM, &rx_char, 1);
     }
-    if (SIM_sendATCommandResponse("AT+CFUN?\r\n", "1") == false)
+    if ((SIM_sendATCommandResponse("AT+CFUN?\r\n", "1") == false) && (SIM_sendATCommandResponse("ATE0\r\n", "OK") == false))
     {
         HAL_GPIO_WritePin(PWRKEY_PORT, PWRKEY_PIN, GPIO_PIN_SET);
 #if FREERTOS == 1
@@ -68,6 +75,12 @@ bool SIM_Init(void)
     }
 }
 
+/**
+ * @brief De-initalize SIM
+ * 
+ * @return true if successful,
+ * @return false if fail
+ */
 bool SIM_Deinit(void)
 {
     if (SIM_sendATCommandResponse("AT\r\n", "OK") == true)
@@ -95,6 +108,10 @@ bool SIM_Deinit(void)
     }
 }
 
+/**
+ * @brief SIM Reset by firmware
+ * 
+ */
 void SIM_Reset(void)
 {
     if (SIM_sendATCommandResponse("AT\r\n", "OK") == true)
@@ -108,16 +125,29 @@ void SIM_Reset(void)
     }
 }
 
+/**
+ * @brief RX Interrupt Handler for module SIM.
+ * Add this to RX complete callback
+ * 
+ */
 void SIM_RXCallback(void)
 {
     rx_buffer[rx_index++] = rx_char;
+
     if ((SIM_RX_STATUS == SIM_RX_START) && (rx_index == 1))
     {
+#if USE_MQTT == 1
+        if (rx_char == '0')
+        {
+            isReceivingMQTT = true;
+            MQTTByteCount = 0xFFFF;
+        }
+#endif
         SIM_RX_STATUS = SIM_RX_RECIEVING;
     }
     else if (SIM_RX_STATUS == SIM_RX_RECIEVING)
     {
-        if ((strstr((char *)rx_buffer, "\r\n") != NULL) && rx_index == 2)
+        if ((strstr((char *)rx_buffer, "\r\n") != NULL) && (rx_index == 2))
         {
             rx_index = 0;
         }
@@ -126,12 +156,30 @@ void SIM_RXCallback(void)
             SIM_RX_STATUS = SIM_RX_END;
         }
 #if USE_MQTT == 1
-        
+        else if (isReceivingMQTT == true)
+        {
+            if (MQTTByteCount == 0xFFFF)
+            {
+                MQTTByteCount = rx_char;
+            }
+            else if (MQTTByteCount > 0)
+            {
+                MQTTByteCount--;
+            }
+            if (MQTTByteCount == 0)
+            {
+                MQTT_Receive(rx_buffer);
+                isReceivingMQTT = false;
+                SIM_clearRX();
+                SIM_RX_STATUS = SIM_RX_START;
+            }
+        }
 #endif
     }
     rx_char = '\0';
     HAL_UART_Receive_IT(UART_SIM, &rx_char, 1);
 }
+
 
 void SIM_clearRX(void)
 {
@@ -140,6 +188,7 @@ void SIM_clearRX(void)
     rx_char = '\0';
 }
 
+
 bool SIM_checkSIMCard(void)
 {
     bool status = true;
@@ -147,6 +196,7 @@ bool SIM_checkSIMCard(void)
     status &= SIM_sendATCommandResponse("AT+CREG?\r\n", ",1");
     return status;
 }
+
 
 void SIM_sendSMS(char* number, char* message)
 {
@@ -189,6 +239,7 @@ void SIM_sendSMS(char* number, char* message)
     }
 }
 
+
 void SIM_call(char* number)
 {
     char str[30] = {0};
@@ -204,6 +255,7 @@ void SIM_call(char* number)
     }
 }
 
+
 uint32_t SIM_checkBalance(void)
 {
     SIM_sendATCommand("AT+CUSD=1,\"*101#\"\r\n");
@@ -217,6 +269,7 @@ uint32_t SIM_checkBalance(void)
     return SIM.Balance;
 }
 
+
 void SIM_sendATCommand(char* command)
 {
     SIM_clearRX();
@@ -229,6 +282,7 @@ void SIM_sendATCommand(char* command)
         HAL_Delay(CMD_DELAY_VERYSHORT);
 #endif
 }
+
 
 bool SIM_sendATCommandResponse(char* command, char* response)
 {
@@ -258,6 +312,7 @@ bool SIM_sendATCommandResponse(char* command, char* response)
     return false;
 }
 
+
 bool SIM_startGPRS(void)
 {
     bool status = true;
@@ -275,6 +330,7 @@ bool SIM_startGPRS(void)
 
     return status;
 }
+
 
 bool SIM_getIP(void)
 {
@@ -328,6 +384,7 @@ bool SIM_getIP(void)
     }
 
 }
+
 
 uint8_t SIM_checkSignalStrength(void)
 {
