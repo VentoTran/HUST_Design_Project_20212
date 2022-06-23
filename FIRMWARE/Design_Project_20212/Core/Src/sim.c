@@ -19,6 +19,10 @@
 #include "cmsis_os2.h"
 #endif
 
+#if USE_MQTT == 1
+#include "mqtt.h"
+#endif
+
 volatile SIM_RX_t SIM_RX_STATUS = SIM_RX_START;
 static SIM_IP_t SIM_IP = {0, 0, 0, 0};
 static SIM_t SIM = {"m3-world", "mms", "mms", 0, 0, 0};
@@ -121,6 +125,9 @@ void SIM_RXCallback(void)
         {
             SIM_RX_STATUS = SIM_RX_END;
         }
+#if USE_MQTT == 1
+        
+#endif
     }
     rx_char = '\0';
     HAL_UART_Receive_IT(UART_SIM, &rx_char, 1);
@@ -214,7 +221,7 @@ void SIM_sendATCommand(char* command)
 {
     SIM_clearRX();
     SIM_RX_STATUS = SIM_RX_START;
-    HAL_UART_Transmit(UART_SIM, (unsigned char *)command, (uint16_t)strlen(command), 100);
+    HAL_UART_Transmit(UART_SIM, (unsigned char *)command, (uint16_t)strlen(command), 10);
 
 #if FREERTOS == 1
         osDelay(CMD_DELAY_VERYSHORT);

@@ -11,12 +11,19 @@
 
 
 #include "mqtt.h"
-
+#include "string.h"
+#include "MQTTPacket.h"
 
 extern uint8_t rx_buffer[200];
 extern SIM_RX_t SIM_RX_STATUS;
 
+#if FREERTOS == 1
+#include "cmsis_os2.h"
+#endif
+
 MQTT_t MQTT;
+
+//-------------------------------------------------------------------------------------------------------------------------------------
 
 /**
  * @brief 
@@ -31,11 +38,13 @@ bool MQTT_SendMQTT(char* mqtt, uint8_t len, char* response)
 {
     SIM_clearRX();
     SIM_RX_STATUS = SIM_RX_START;
-    HAL_UART_Transmit(UART_SIM, (unsigned char *)mqtt, (uint16_t)len, 100);
+	char temp[1]= {26};
 
-    osDelay(200);
+    HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)mqtt, (uint16_t)len);
 
-    *UART_SIM.Instance->DR = 0x1A;
+    osDelay(500);
+
+    HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)temp, (uint16_t)(1));
 
     uint32_t timeOut = 0;
     timeOut = HAL_GetTick();
@@ -76,9 +85,9 @@ bool MQTT_Connect(void)
     state &= SIM_sendATCommandResponse(str1, "OK\r\n");
 
 #if FREERTOS == 1
-    osDelay(200);
+    osDelay(CMD_DELAY_VERYSHORT);
 #else
-    HAL_Delay(200);
+    HAL_Delay(CMD_DELAY_VERYSHORT);
 #endif
     
     if (state == true)
@@ -90,22 +99,35 @@ bool MQTT_Connect(void)
         datas.keepAliveInterval = MQTT.mqttClient.keepAliveInterval;
         datas.cleansession = 1;
         int mqtt_len = MQTTSerialize_connect(buf, sizeof(buf), &datas);
+
+#if FREERTOS == 1
+        osDelay(CMD_DELAY_MEDIUM);
+#else
+        HAL_Delay(CMD_DELAY_MEDIUM);
+#endif
+
+        // HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)"AT+CIPSEND\r\n", (uint16_t)strlen("AT+CIPSEND\r\n"));
         SIM_sendATCommand("AT+CIPSEND\r\n");
-        osDelay(200);
+
+#if FREERTOS == 1
+        osDelay(CMD_DELAY_VERYSHORT);
+#else
+        HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
+
         if (strstr(rx_buffer, ">") != NULL)
         {
             state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
-            osDelay(100);
+			return state;
         }
-        
 #if FREERTOS == 1
-        osDelay(200);
+        osDelay(CMD_DELAY_VERYSHORT);
 #else
-        HAL_Delay(200);
+        HAL_Delay(CMD_DELAY_VERYSHORT);
 #endif
-        return state;
+        return false;
     }
-    return state;
+    return false;
 }
 
 /**
@@ -124,17 +146,22 @@ bool MQTT_Pub(char *topic, char *payload)
     MQTTString topicString = MQTTString_initializer;
     topicString.cstring = topic;
     
-    int mqtt_len = MQTTSerialize_publish(buf, sizeof(buf), 0, 0, 1, 0, topicString, (unsigned char *)payload, (int)strlen(payload));
+    int mqtt_len = MQTTSerialize_publish(buf, sizeof(buf), 0, 0, 0, 0, topicString, (unsigned char *)payload, (int)strlen(payload));
 
     SIM_sendATCommand("AT+CIPSEND\r\n");
-    osDelay(200);
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_VERYSHORT);
+#else
+    HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
     if (strstr(rx_buffer, ">") != NULL)
     {
+		osDelay(CMD_DELAY_VERYSHORT);
         state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
-        osDelay(100);
+        // osDelay(CMD_DELAY_VERYSHORT);
         return state;
     }
-    return state;
+    return false;
 }
 
 /**
@@ -143,11 +170,11 @@ bool MQTT_Pub(char *topic, char *payload)
  * @param topic 
  * @param payload 
  */
-void MQTT_PubUint8(char *topic, uint8_t payload)
+bool MQTT_PubUint8(char *topic, uint8_t payload)
 {
     char str[32] = {0};
     sprintf(str, "%u", payload);
-    MQTT_Pub(topic, str);
+    return MQTT_Pub(topic, str);
 }
 
 
@@ -163,11 +190,11 @@ void MQTT_PubUint32(char *topic, uint32_t payload);
  * @param payload 
  * @param digit 
  */
-void MQTT_PubFloat(char *topic, float payload, uint8_t digit)
+bool MQTT_PubFloat(char *topic, float payload, uint8_t digit)
 {
     char str[32] = {0};
     ftoa(payload, str, digit);
-    MQTT_Pub(topic, str);
+    return MQTT_Pub(topic, str);
 }
 
 /**
@@ -177,30 +204,98 @@ void MQTT_PubFloat(char *topic, float payload, uint8_t digit)
  * @param payload 
  * @param digit 
  */
-void MQTT_PubDouble(char *topic, double payload, uint8_t digit)
+bool MQTT_PubDouble(char *topic, double payload, uint8_t digit)
 {
     char str[32] = {0};
     ftoa(payload, str, digit);
-    MQTT_Pub(topic, str);
+    return MQTT_Pub(topic, str);
+}
+
+/**
+ * @brief 
+ * 
+ * @return true 
+ * @return false 
+ */
+bool MQTT_PingReq(void)
+{
+    unsigned char buf[16] = {0};
+    bool state = true;
+
+    int mqtt_len = MQTTSerialize_zero(buf, sizeof(buf), PINGREQ);
+    SIM_sendATCommand("AT+CIPSEND\r\n");
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_VERYSHORT);
+#else
+    HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
+    if (strstr(rx_buffer, ">") != NULL)
+    {
+        state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
+        osDelay(100);
+        return state;
+    }
+    return state;
+}
+
+/**
+ * @brief 
+ * 
+ * @param topic 
+ * @return true 
+ * @return false 
+ */
+bool MQTT_Sub(char *topic)
+{
+    unsigned char buf[256] = {0};
+    bool state = true;
+
+    MQTTString topicString = MQTTString_initializer;
+    topicString.cstring = topic;
+
+    int mqtt_len = MQTTSerialize_subscribe(buf, sizeof(buf), 0, 1, 1, &topicString, 0);
+    SIM_sendATCommand("AT+CIPSEND\r\n");
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_VERYSHORT);
+#else
+    HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
+    if (strstr(rx_buffer, ">") != NULL)
+    {
+        state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
+        osDelay(100);
+        return state;
+    }
+	return false;
+}
+
+/**
+ * @brief 
+ * 
+ * @param buf 
+ */
+void MQTT_Receive(unsigned char *buf)
+{
+    memset(MQTT.mqttReceive.topic, 0, sizeof(MQTT.mqttReceive.topic));
+    memset(MQTT.mqttReceive.payload, 0, sizeof(MQTT.mqttReceive.payload));
+    MQTTString receivedTopic;
+    unsigned char *payload;
+    MQTTDeserialize_publish(&MQTT.mqttReceive.dup, &MQTT.mqttReceive.qos, &MQTT.mqttReceive.retained,
+                            &MQTT.mqttReceive.msgId,
+                            &receivedTopic, &payload, &MQTT.mqttReceive.payloadLen, buf,
+                            sizeof(buf));
+    memcpy(MQTT.mqttReceive.topic, receivedTopic.lenstring.data, receivedTopic.lenstring.len);
+    MQTT.mqttReceive.topicLen = receivedTopic.lenstring.len;
+    memcpy(MQTT.mqttReceive.payload, payload, MQTT.mqttReceive.payloadLen);
+    MQTT.mqttReceive.newEvent = 1;
 }
 
 
-void MQTT_PingReq(void);
 
 
-void MQTT_Sub(char *topic);
 
 
-void MQTT_Receive(unsigned char *buf);
 
-
-int MQTTstrlen(MQTTString mqttstring);
-
-
-int MQTTSerialize_connect(unsigned char* buf, int buflen, MQTTPacket_connectData* options);
-
-
-int MQTTSerialize_publish(unsigned char* buf, int buflen, unsigned char dup, int qos, unsigned char retained, unsigned short packetid, MQTTString topicName, unsigned char* payload, int payloadlen);
 
 
 

@@ -465,10 +465,10 @@ uint32_t Kalman_getData(uint32_t newData, uint32_t newRate, uint32_t dt)
  */
 void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
 {
-    uint8_t i = 1, n_width = 1;
     obj->Peak.nPeak = 0;
     uint32_t n_min_height = 0;
     uint64_t sum = 0;
+    uint32_t avr10[40] = {0};
 
     for (uint8_t k = 0; k < n_size; k++)
     {
@@ -477,33 +477,71 @@ void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
 
     n_min_height = (uint32_t) (sum / n_size);
 
-    while (i < (n_size-1))
+    // while (i < (n_size-1))
+    // {
+    //     if ((pn_x[i] > n_min_height) && (pn_x[i] > pn_x[i-1]))
+    //     {      
+    //         // find left edge of potential peaks
+    //         n_width = 1;
+    //         while ((i+n_width < n_size) && (pn_x[i] == pn_x[i+n_width]))
+    //         {
+    //             n_width++;
+    //         }  // find flat peaks
+    //         if ((pn_x[i] > pn_x[i+n_width]) && ((obj->Peak.nPeak) < 15))
+    //         {      
+    //             // find right edge of peaks
+    //             obj->Peak.peakLoc[(obj->Peak.nPeak)++] = i;    
+    //             // for flat peaks, peak location is left edge
+    //             i += n_width+1;
+    //         }
+    //         else
+    //         {
+    //             i += n_width;
+    //         }
+    //     }
+    //     else
+    //     {
+    //         i++;
+    //     }
+    // }
+
+    for (uint8_t i = 0; i < 200; i += 5)
     {
-        if ((pn_x[i] > n_min_height) && (pn_x[i] > pn_x[i-1]))
-        {      
-            // find left edge of potential peaks
-            n_width = 1;
-            while ((i+n_width < n_size) && (pn_x[i] == pn_x[i+n_width]))
-            {
-                n_width++;
-            }  // find flat peaks
-            if ((pn_x[i] > pn_x[i+n_width]) && ((obj->Peak.nPeak) < 15))
-            {      
-                // find right edge of peaks
-                obj->Peak.peakLoc[(obj->Peak.nPeak)++] = i;    
-                // for flat peaks, peak location is left edge
-                i += n_width+1;
-            }
-            else
-            {
-                i += n_width;
-            }
-        }
-        else
+        uint64_t sum = 0;
+        for (uint8_t j = 0; j < 5; j++)
         {
-            i++;
+            sum += pn_x[i+j];
+        }
+        avr10[i/5] = (uint32_t)(sum / 5);
+    }
+
+    for (uint8_t i = 1; i < 39; i++)
+    {
+        if ((i == 0) || (i == 39))
+        {
+            
+        }
+        if ((avr10[i] >= avr10[i-1]) && (avr10[i] >= avr10[i+1]) && (avr10[i] >= n_min_height))
+        {
+            obj->Peak.peakLoc[(obj->Peak.nPeak)++] = i;
         }
     }
+
+    for (uint8_t i = 0; i < obj->Peak.nPeak; i++)
+    {
+        uint8_t origin = obj->Peak.peakLoc[i]*5;
+        uint32_t max = pn_x[origin];
+        for (uint8_t j = 0; j < 5; j++)
+        {
+            if (pn_x[origin+j] > max)
+            {
+                obj->Peak.peakLoc[i] = origin + j;
+                max = pn_x[origin+j];
+            }
+        }
+    }
+
+    //-------------------------------------------------------------------------------
 
     uint32_t peak_value[10] = {0};
     uint32_t tempVal = 0;

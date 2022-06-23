@@ -20,6 +20,7 @@
 // === CONFIG ===
 #define UART_SIM    &huart3
 #define FREERTOS    1
+#define USE_MQTT    1
 #define CMD_DELAY_LONG          5000
 #define CMD_DELAY_MEDIUM        2000
 #define CMD_DELAY_SHORT         1000

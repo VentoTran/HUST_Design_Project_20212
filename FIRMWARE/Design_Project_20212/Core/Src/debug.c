@@ -17,6 +17,21 @@
 #include <stdarg.h>
 #include <string.h>
 
+static uint8_t rx_debug = 0;
+
+void Debug_Init(void)
+{
+    HAL_UART_Receive_IT(UART_DEBUG, rx_debug, 1);
+}
+
+void debug_callback(void)
+{
+    if (rx_debug == '^')
+    {
+        HAL_NVIC_SystemReset();
+    }
+    HAL_UART_Receive_IT(UART_DEBUG, rx_debug, 1);
+}
 
 #if DEBUG == 1
 /**

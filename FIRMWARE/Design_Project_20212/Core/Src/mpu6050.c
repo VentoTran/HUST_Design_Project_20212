@@ -63,6 +63,12 @@ Kalman_t KalmanY = {
     .R_measure = 0.03f,
 };
 
+Kalman_t KalmanZ = {
+    .Q_angle = 0.001f,
+    .Q_bias = 0.003f,
+    .R_measure = 0.03f,
+};
+
 uint8_t MPU6050_Init(I2C_HandleTypeDef *I2Cx)
 {
     uint8_t check = 0;
@@ -184,8 +190,8 @@ void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct)
     timer = HAL_GetTick();
     
     double roll;
-    double roll_sqrt = sqrt(
-        DataStruct->Accel_X_RAW * DataStruct->Accel_X_RAW + DataStruct->Accel_Z_RAW * DataStruct->Accel_Z_RAW);
+    double roll_sqrt = sqrt(DataStruct->Accel_X_RAW * DataStruct->Accel_X_RAW + DataStruct->Accel_Z_RAW * DataStruct->Accel_Z_RAW);
+    
     if (roll_sqrt != 0.0)
     {
         roll = atan(DataStruct->Accel_Y_RAW / roll_sqrt) * RAD_TO_DEG;
@@ -195,19 +201,37 @@ void MPU6050_Read_All(I2C_HandleTypeDef *I2Cx, MPU6050_t *DataStruct)
         roll = 0.0;
     }
     
-    double pitch = atan2(-DataStruct->Accel_X_RAW, DataStruct->Accel_Z_RAW) * RAD_TO_DEG;
-    // if ((pitch < -90 && DataStruct->KalmanAngleY > 90) || (pitch > 90 && DataStruct->KalmanAngleY < -90))
-    // {
-        // KalmanY.angle = pitch;
-        // DataStruct->KalmanAngleY = pitch;
-    // }
-    // else
-    // {
-        DataStruct->KalmanAngleY = Kalman_getAngle(&KalmanY, pitch, DataStruct->Gy, dt);
-    // }
-    // if (fabs(DataStruct->KalmanAngleY) > 90)
-    //     DataStruct->Gx = -DataStruct->Gx;
-    DataStruct->KalmanAngleX = Kalman_getAngle(&KalmanX, roll, DataStruct->Gx, dt);
+    double pitch;
+    double pitch_sqrt = sqrt(DataStruct->Accel_Z_RAW * DataStruct->Accel_Z_RAW + DataStruct->Accel_Y_RAW * DataStruct->Accel_Y_RAW);
+    
+    if (pitch_sqrt != 0.0)
+    {
+        pitch = atan(DataStruct->Accel_X_RAW / pitch_sqrt) * RAD_TO_DEG;
+    }
+    else
+    {
+        pitch = 0.0;
+    }
+    
+    double yaw;
+    double yaw_sqrt = sqrt(DataStruct->Accel_X_RAW * DataStruct->Accel_X_RAW + DataStruct->Accel_Y_RAW * DataStruct->Accel_Y_RAW);
+    
+    if (yaw_sqrt != 0.0)
+    {
+        yaw = atan(DataStruct->Accel_Z_RAW / yaw_sqrt) * RAD_TO_DEG;
+    }
+    else
+    {
+        yaw = 0.0;
+    }
+    
+
+    DataStruct->KalmanAngleX = Kalman_getAngle(&KalmanX, pitch, DataStruct->Gx, dt);
+
+    DataStruct->KalmanAngleY = Kalman_getAngle(&KalmanY, roll, DataStruct->Gy, dt);
+
+    DataStruct->KalmanAngleZ = Kalman_getAngle(&KalmanZ, yaw, DataStruct->Gz, dt);
+
 }
 
 double Kalman_getAngle(Kalman_t *Kalman, double newAngle, double newRate, double dt)

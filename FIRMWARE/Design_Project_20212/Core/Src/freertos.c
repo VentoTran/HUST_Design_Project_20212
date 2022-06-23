@@ -35,6 +35,7 @@
 #include "debug.h"
 #include "stdlib.h"
 #include "math.h"
+#include "mqtt.h"
 
 /* USER CODE END Includes */
 
@@ -62,14 +63,12 @@ typedef enum
 /* USER CODE BEGIN Variables */
 // extern IWDG_HandleTypeDef hiwdg;
 extern I2C_HandleTypeDef hi2c1;
+static Mode_t DeviceState = RUNNING;
+
+extern MQTT_t MQTT;
 
 static MPU6050_t MPU6050;
 static RTC_t myRTC;
-static Mode_t DeviceState = RUNNING;
-
-
-volatile bool isTouch = false;
-
 static max30102_t MAX30102;
 static uint8_t HeartRate = 0;
 static uint8_t tHR[4] = {0};
@@ -77,6 +76,8 @@ static uint32_t IR_Value[250] = {0};
 static uint8_t IR_Count = 0;
 static uint32_t RD_Value[250] = {0};
 static uint8_t RD_Count = 0;
+
+volatile bool isTouch = false;
 
 /* USER CODE END Variables */
 /* Definitions for LCD_Task */
@@ -90,7 +91,7 @@ const osThreadAttr_t LCD_Task_attributes = {
 osThreadId_t SIM_TaskHandle;
 const osThreadAttr_t SIM_Task_attributes = {
   .name = "SIM_Task",
-  .stack_size = 150 * 4,
+  .stack_size = 200 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SEN_Task */
@@ -104,13 +105,13 @@ const osThreadAttr_t SEN_Task_attributes = {
 osThreadId_t GPS_TaskHandle;
 const osThreadAttr_t GPS_Task_attributes = {
   .name = "GPS_Task",
-  .stack_size = 150 * 4,
+  .stack_size = 50 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for LCD_Touch */
-osSemaphoreId_t LCD_TouchHandle;
-const osSemaphoreAttr_t LCD_Touch_attributes = {
-  .name = "LCD_Touch"
+/* Definitions for LCD_Timer */
+osTimerId_t LCD_TimerHandle;
+const osTimerAttr_t LCD_Timer_attributes = {
+  .name = "LCD_Timer"
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -122,6 +123,7 @@ void LCDTASK(void *argument);
 void SIMTASK(void *argument);
 void SENSOR_Task(void *argument);
 void GPS_TASK(void *argument);
+void LCD_Timer_Callback(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -139,13 +141,13 @@ void MX_FREERTOS_Init(void) {
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
-  /* Create the semaphores(s) */
-  /* creation of LCD_Touch */
-  LCD_TouchHandle = osSemaphoreNew(1, 1, &LCD_Touch_attributes);
-
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
+
+  /* Create the timer(s) */
+  /* creation of LCD_Timer */
+  LCD_TimerHandle = osTimerNew(LCD_Timer_Callback, osTimerOnce, NULL, &LCD_Timer_attributes);
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
@@ -188,12 +190,15 @@ void MX_FREERTOS_Init(void) {
 void LCDTASK(void *argument)
 {
   /* USER CODE BEGIN LCDTASK */
-  // osThreadSuspend(LCD_TaskHandle);
+  osThreadSuspend(LCD_TaskHandle);
+  osThreadSuspend(SIM_TaskHandle);
+  osThreadSuspend(GPS_TaskHandle);
   ILI9341_Unselect();
   ILI9341_TouchUnselect();
   osDelay(1000);
   ILI9341_Init();
   osDelay(1000);
+  isTouch = false;
   ILI9341_FillScreen(ILI9341_BLACK);
   ILI9341_WriteString(50, 10, "SIM: ", Font_16x26, ILI9341_WHITE, ILI9341_BLACK);
   ILI9341_WriteString(130, 10, "GPRS: ", Font_16x26, ILI9341_WHITE, ILI9341_BLACK);
@@ -206,25 +211,26 @@ void LCDTASK(void *argument)
     // HAL_IWDG_Refresh(&hiwdg);
     osDelay(50);
 //  ----------------------------------- Wait for event --------------------------------------------
-    if (osSemaphoreAcquire(LCD_TouchHandle, portMAX_DELAY) == osOK)
+    // if (osSemaphoreAcquire(LCD_TouchHandle, portMAX_DELAY) == osOK)
+    // {
+    if ((HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET) && (isTouch == true))
     {
-      if ((HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET) && (isTouch == true))
+      osDelay(100);
+      if (HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET)
       {
-        osDelay(50);
-        if (HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET)
-        {
-          while(ILI9341_TouchGetCoordinates(&y, &x) != true);
-          y = 240 - y;
-          x = 320 - x;
-        }
-        logPC("Touch Coordinate: (%i,%i)\n", x, y);
-        ILI9341_DrawPixel(x, y, ILI9341_WHITE);
-        osDelay(50);
+        while(ILI9341_TouchGetCoordinates(&y, &x) != true);
+        y = 240 - y;
+        x = 320 - x;
       }
+      logPC("Touch Coordinate: (%i,%i)\n", x, y);
+      ILI9341_DrawPixel(x, y, ILI9341_WHITE);
     }
+    // }
     isTouch = false;
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    osDelay(50);
+    // osThreadResume(SIM_TaskHandle);
+    // osThreadResume(GPS_TaskHandle);
+    osThreadSuspend(LCD_TaskHandle);
   }
   /* USER CODE END LCDTASK */
 }
@@ -239,11 +245,22 @@ void LCDTASK(void *argument)
 void SIMTASK(void *argument)
 {
   /* USER CODE BEGIN SIMTASK */
-  osThreadSuspend(SIM_TaskHandle);
+  // osThreadSuspend(SIM_TaskHandle);
+  osDelay(2000);
   SIM_Init();
   osDelay(5000);
   SIM_startGPRS();
   osDelay(2000);
+  MQTT.mqttServer.host = "test.mosquitto.org";
+  MQTT.mqttServer.port = 1883;
+  MQTT.mqttClient.username = "";
+  MQTT.mqttClient.clientID = "hmmm";
+  MQTT.mqttClient.pass = "";
+  MQTT.mqttClient.keepAliveInterval = 120;
+  MQTT_Connect();
+  osDelay(1000);
+  MQTT_Pub("mandevices/running", "1");
+  osDelay(1000);
   // SIM_sendSMS("0914989855", "HELLO :P");
   /* Infinite loop */
   for(;;)
@@ -251,6 +268,9 @@ void SIMTASK(void *argument)
     // osThreadSuspend(LCD_TaskHandle);
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
     osDelay(500);
+    // MQTT_Connect();
+    MQTT_Pub("mandevices/running", "1");
+    osDelay(10000);
   }
   /* USER CODE END SIMTASK */
 }
@@ -265,8 +285,9 @@ void SIMTASK(void *argument)
 void SENSOR_Task(void *argument)
 {
   /* USER CODE BEGIN SENSOR_Task */
-  // osThreadSuspend(SEN_TaskHandle);
-  // osDelay(5000);
+  osThreadSuspend(SEN_TaskHandle);
+  osDelay(5000);
+  Debug_Init();
   while (MPU6050_Init(&hi2c1))
   {
     osDelay(50);
@@ -341,7 +362,7 @@ void SENSOR_Task(void *argument)
       lastTime = HAL_GetTick();
     }
 #if PLOT == 1
-    logPC("$%d %d;", (uint8_t)MPU6050.KalmanAngleX, (uint8_t)MPU6050.KalmanAngleY);
+    // logPC("$%i %i %i;", (int)MPU6050.KalmanAngleX, (int)MPU6050.KalmanAngleY, (int)MPU6050.KalmanAngleZ);
 #endif
 
     max30102_read_fifo(&MAX30102);
@@ -387,7 +408,7 @@ void SENSOR_Task(void *argument)
         }
         // logPC("%d", (uint8_t)avr_gap);
 
-        HeartRate = (uint8_t)((60000.0 * MAX30102.Peak.nPeak) / (gap * (MAX30102.deltaTSample + 7)));
+        HeartRate = (uint8_t)((60000.0 * MAX30102.Peak.nPeak) / (gap * (MAX30102.deltaTSample*2)));
         if ((HeartRate >= 55) && (HeartRate <= 140))
         {
           tHR[0] = tHR[1];
@@ -403,10 +424,12 @@ void SENSOR_Task(void *argument)
         osDelay(50);
       }
 
-      memset(IR_Value, '\0', sizeof(IR_Value));
-      memset(RD_Value, '\0', sizeof(RD_Value));
-      IR_Count = 0;
-      RD_Count = 0;
+      memset(IR_Value, '\0', 200*4);
+      memset(RD_Value, '\0', 200*4);
+      memcpy(IR_Value, IR_Value+200, 50*4);
+      memcpy(RD_Value, RD_Value+200, 50*4);
+      IR_Count -= 199;
+      RD_Count -= 199;
     }
 
     count = 0;
@@ -417,9 +440,15 @@ void SENSOR_Task(void *argument)
       count++;
     }
 
+    if ((isTouch == true) && (osThreadGetState(LCD_TaskHandle) == osThreadBlocked))
+    {
+      osThreadResume(LCD_TaskHandle);
+      osThreadSuspend(SIM_TaskHandle);
+      osThreadSuspend(GPS_TaskHandle);
+    }
+
     osDelay(50);
-  
-    
+
   }
   /* USER CODE END SENSOR_Task */
 }
@@ -445,11 +474,19 @@ void GPS_TASK(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    osThreadSuspend(GPS_TaskHandle);
+    // osThreadSuspend(GPS_TaskHandle);
     GPSResponse = l70_receiveGPS();
     l70_handleGPS(latData, longData, GPSResponse);
   }
   /* USER CODE END GPS_TASK */
+}
+
+/* LCD_Timer_Callback function */
+void LCD_Timer_Callback(void *argument)
+{
+  /* USER CODE BEGIN LCD_Timer_Callback */
+
+  /* USER CODE END LCD_Timer_Callback */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -464,6 +501,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   {
     l70_callback();
   }
+  if (huart->Instance == USART1)
+  {
+    debug_callback();
+  }
+  if (huart->Instance == UART4)
+  {
+
+  }
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -471,7 +516,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   if ((GPIO_Pin == TCH_IRQ_Pin) && (isTouch != true))
   {
     isTouch = true;
-    osSemaphoreRelease(LCD_TouchHandle);
+    // osSemaphoreRelease(LCD_TouchHandle);
   }
 }
 

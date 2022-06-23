@@ -20,6 +20,10 @@
 #define DEBUG   1
 #define PLOT    1
 
+void Debug_Init(void);
+
+void debug_callback(void);
+
 void logPC(const char *fmt, ...);
 
 
