@@ -161,6 +161,7 @@ bool MQTT_Pub(char *topic, char *payload)
 		osDelay(CMD_DELAY_VERYSHORT);
         state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
         // osDelay(CMD_DELAY_VERYSHORT);
+        SIM_clearRX();
         return state;
     }
     SIM_clearRX();

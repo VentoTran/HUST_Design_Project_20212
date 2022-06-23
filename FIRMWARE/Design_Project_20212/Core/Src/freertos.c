@@ -246,9 +246,12 @@ void SIMTASK(void *argument)
 {
   /* USER CODE BEGIN SIMTASK */
   // osThreadSuspend(SIM_TaskHandle);
-  osDelay(2000);
+  // osDelay(2000);
   SIM_Init();
-  osDelay(5000);
+  while (SIM_checkSIMCard() != true)
+  {
+    osDelay(1000);
+  }
   SIM_startGPRS();
   osDelay(500);
   MQTT.mqttServer.host = "test.mosquitto.org";
@@ -270,10 +273,9 @@ void SIMTASK(void *argument)
   {
     // osThreadSuspend(LCD_TaskHandle);
     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-    osDelay(500);
+    MQTT_PingReq();
+    osDelay(5000);
     // MQTT_Connect();
-    MQTT_Pub("mandevices/running", "1");
-    osDelay(500);
     if (MQTT.mqttReceive.newEvent == 1)
     {
       logPC("MQTT Received from topic \"%s\", message is \"%s\"\n", MQTT.mqttReceive.topic, MQTT.mqttReceive.payload);
