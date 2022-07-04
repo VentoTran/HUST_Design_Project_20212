@@ -58,6 +58,14 @@ typedef struct
     uint8_t Octec4;
 } SIM_IP_t;
 
+typedef enum
+{
+    SIM_SIMCARD_OK,
+    SIM_SIMCARD_NOK,
+    SIM_GPRS_OK,
+    SIM_GPRS_NOK
+} SIM_ST_t;
+
 bool SIM_Init(void);
 
 bool SIM_Deinit(void);

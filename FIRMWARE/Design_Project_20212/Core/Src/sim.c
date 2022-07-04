@@ -23,6 +23,7 @@
 #include "mqtt.h"
 static bool isReceivingMQTT = false;
 static uint16_t MQTTByteCount = 0;
+extern MQTT_t MQTT;
 #endif
 
 volatile SIM_RX_t SIM_RX_STATUS = SIM_RX_START;
@@ -153,7 +154,16 @@ void SIM_RXCallback(void)
         }
         else if (strstr((char *)rx_buffer, "\r\n") != NULL)
         {
+            if (strstr((char*)rx_buffer, "CLOSE") != NULL)
+            {
+                MQTT.mqttServer.connect = 0;
+            }
             SIM_RX_STATUS = SIM_RX_END;
+        }
+        else if ((rx_index > 100) && (isReceivingMQTT == false))
+        {
+            SIM_clearRX();
+            SIM_RX_STATUS = SIM_RX_START;
         }
 #if USE_MQTT == 1
         else if (isReceivingMQTT == true)
@@ -186,6 +196,7 @@ void SIM_clearRX(void)
     rx_index = 0;
     memset(rx_buffer, '\0', sizeof(rx_buffer));
     rx_char = '\0';
+    SIM_RX_STATUS = SIM_RX_START;
 }
 
 
@@ -305,6 +316,7 @@ bool SIM_sendATCommandResponse(char* command, char* response)
     if (strstr(rx_buffer, response) != NULL)
     {
         SIM_clearRX();
+        SIM_RX_STATUS = SIM_RX_START;
         return true;
     }
     SIM_clearRX();
@@ -320,7 +332,6 @@ bool SIM_startGPRS(void)
     snprintf(str, sizeof(str), "AT+CSTT=\"%s\",\"%s\",\"%s\"\r\n", SIM.apn, SIM.apn_user, SIM.apn_pass);
 
     status &= SIM_sendATCommandResponse("AT\r\n", "OK");
-    status &= SIM_checkSIMCard();
     status &= SIM_sendATCommandResponse("AT+CIPSHUT\r\n", "OK");
     status &= SIM_sendATCommandResponse("AT+CGATT=1\r\n", "OK");
     status &= SIM_sendATCommandResponse("AT+CIPMODE=0\r\n", "OK");
@@ -349,7 +360,8 @@ bool SIM_getIP(void)
     SIM_IP.Octec2 = 0;
     SIM_IP.Octec3 = 0;
     SIM_IP.Octec4 = 0;
-    while (rx_buffer[idx] != '\r')
+    timeOut = HAL_GetTick();
+    while ((rx_buffer[idx] != '\r') && ((HAL_GetTick() - timeOut) <= CMD_DELAY_LONG))
     {
         if(rx_buffer[idx] == '.')
         {

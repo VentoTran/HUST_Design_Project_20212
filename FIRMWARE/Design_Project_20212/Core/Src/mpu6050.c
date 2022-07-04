@@ -74,6 +74,11 @@ uint8_t MPU6050_Init(I2C_HandleTypeDef *I2Cx)
     uint8_t check = 0;
     uint8_t Data = 0;
 
+    HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &check, 1, i2c_timeout);
+    check |= (uint8_t)(1 << 7);
+    HAL_I2C_Mem_Write(I2Cx, MPU6050_ADDR, PWR_MGMT_1_REG, 1, &check, 1, i2c_timeout);
+    check = 0;
+    
     // check device ID WHO_AM_I
 
     HAL_I2C_Mem_Read(I2Cx, MPU6050_ADDR, WHO_AM_I_REG, 1, &check, 1, i2c_timeout);

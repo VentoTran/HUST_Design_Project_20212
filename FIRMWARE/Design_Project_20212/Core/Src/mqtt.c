@@ -82,8 +82,20 @@ bool MQTT_Connect(void)
     bool state = true;
     char str1[128] = {0};
     unsigned char buf[128] = {0};
-    snprintf(str1, sizeof(str1), "AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n", MQTT.mqttServer.host, MQTT.mqttServer.port);
-    state &= SIM_sendATCommandResponse(str1, "OK\r\n");
+
+    SIM_sendATCommand("At+CIPSTATUS\r\n");
+
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_MEDIUM);
+#else
+    HAL_Delay(CMD_DELAY_MEDIUM);
+#endif
+
+    if (strstr(rx_buffer, "CONNECT OK") == NULL)
+    {
+        snprintf(str1, sizeof(str1), "AT+CIPSTART=\"TCP\",\"%s\",\"%d\"\r\n", MQTT.mqttServer.host, MQTT.mqttServer.port);
+        state &= SIM_sendATCommandResponse(str1, "OK\r\n");
+    }
 
 #if FREERTOS == 1
     osDelay(CMD_DELAY_VERYSHORT);
@@ -107,7 +119,6 @@ bool MQTT_Connect(void)
         HAL_Delay(CMD_DELAY_MEDIUM);
 #endif
 
-        // HAL_UART_Transmit_IT(UART_SIM, (unsigned char *)"AT+CIPSEND\r\n", (uint16_t)strlen("AT+CIPSEND\r\n"));
         SIM_sendATCommand("AT+CIPSEND\r\n");
 
 #if FREERTOS == 1
@@ -119,6 +130,7 @@ bool MQTT_Connect(void)
         if (strstr(rx_buffer, ">") != NULL)
         {
             state &= MQTT_SendMQTT((char*)buf, mqtt_len, "SEND OK");
+            if (state == true)  MQTT.mqttServer.connect = 1;
 			return state;
         }
 #if FREERTOS == 1
@@ -150,7 +162,14 @@ bool MQTT_Pub(char *topic, char *payload)
     
     int mqtt_len = MQTTSerialize_publish(buf, sizeof(buf), 0, 0, 0, 0, topicString, (unsigned char *)payload, (int)strlen(payload));
 
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_VERYSHORT);
+#else
+    HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
+
     SIM_sendATCommand("AT+CIPSEND\r\n");
+
 #if FREERTOS == 1
     osDelay(CMD_DELAY_VERYSHORT);
 #else
@@ -227,7 +246,14 @@ bool MQTT_PingReq(void)
     bool state = true;
 
     int mqtt_len = MQTTSerialize_zero(buf, sizeof(buf), PINGREQ);
+#if FREERTOS == 1
+        osDelay(CMD_DELAY_MEDIUM);
+#else
+        HAL_Delay(CMD_DELAY_MEDIUM);
+#endif
+
     SIM_sendATCommand("AT+CIPSEND\r\n");
+
 #if FREERTOS == 1
     osDelay(CMD_DELAY_VERYSHORT);
 #else
@@ -260,6 +286,11 @@ bool MQTT_Sub(char *topic)
     topicString.cstring = topic;
 
     int mqtt_len = MQTTSerialize_subscribe(buf, sizeof(buf), 0, 1, 1, &topicString, 0);
+#if FREERTOS == 1
+    osDelay(CMD_DELAY_VERYSHORT);
+#else
+    HAL_Delay(CMD_DELAY_VERYSHORT);
+#endif
     SIM_sendATCommand("AT+CIPSEND\r\n");
 #if FREERTOS == 1
     osDelay(CMD_DELAY_VERYSHORT);

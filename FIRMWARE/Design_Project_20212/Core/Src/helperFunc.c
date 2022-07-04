@@ -38,7 +38,7 @@ int intToStr(int x, char str[], int d)
     // If number of digits required is more, then
     // add 0s at the beginning
     while (i < d)
-        str[i++] = '0';
+        str[i++] = ' ';
 
     reverse(str, i);
     str[i] = '\0';

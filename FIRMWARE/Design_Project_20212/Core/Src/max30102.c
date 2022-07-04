@@ -572,14 +572,14 @@ void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
 
     uint8_t bound[5][2] = {{0}};
     uint8_t validPeak = 1;
-    if (obj->Peak.peakLoc[0] <= obj->Peak.minGap)
+    if (obj->Peak.peakLoc[0] <= 40)
         bound[0][0] = 0;
     else
-        bound[0][0] = obj->Peak.peakLoc[0] - obj->Peak.minGap;
-    if ((199 - obj->Peak.peakLoc[0]) <= obj->Peak.minGap)
+        bound[0][0] = obj->Peak.peakLoc[0] - 40;
+    if ((199 - obj->Peak.peakLoc[0]) <= 40)
         bound[0][1] = 199;
     else
-        bound[0][1] = obj->Peak.peakLoc[0] + obj->Peak.minGap;
+        bound[0][1] = obj->Peak.peakLoc[0] + 40;
     
     for (uint8_t i = 1; i < obj->Peak.nPeak; i++)
     {
@@ -593,14 +593,14 @@ void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
         
         if (obj->Peak.peakLoc[i] != 255)
         {
-            if (obj->Peak.peakLoc[i] <= obj->Peak.minGap)
+            if (obj->Peak.peakLoc[i] <= 40)
                 bound[validPeak][0] = 0;
             else
-                bound[validPeak][0] = obj->Peak.peakLoc[i] - obj->Peak.minGap;
-            if ((199 - obj->Peak.peakLoc[i]) <= obj->Peak.minGap)
+                bound[validPeak][0] = obj->Peak.peakLoc[i] - 40;
+            if ((199 - obj->Peak.peakLoc[i]) <= 40)
                 bound[validPeak][1] = 199;
             else
-                bound[validPeak][1] = obj->Peak.peakLoc[i] + obj->Peak.minGap;
+                bound[validPeak][1] = obj->Peak.peakLoc[i] + 40;
             validPeak++;
         }
     }
@@ -629,7 +629,7 @@ void maxim_find_peaks(max30102_t *obj, uint32_t *pn_x, uint8_t n_size)
 
     obj->Peak.nPeak = validPeak;
 
-    obj->Peak.nPeak = ((obj->Peak.nPeak > obj->Peak.maxPeak)? (obj->Peak.maxPeak):(obj->Peak.nPeak));
+    obj->Peak.nPeak = ((obj->Peak.nPeak > 7)? (7):(obj->Peak.nPeak));
 }
 
 

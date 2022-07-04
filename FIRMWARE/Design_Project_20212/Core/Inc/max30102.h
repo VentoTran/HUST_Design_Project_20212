@@ -127,8 +127,8 @@ typedef struct
 {
     uint8_t peakLoc[10];
     uint8_t nPeak;
-    uint8_t minGap;
-    uint8_t maxPeak;
+    const uint8_t minGap;
+    const uint8_t maxPeak;
 } Peak_t;
 
 typedef struct max30102_t

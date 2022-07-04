@@ -21,7 +21,7 @@ static uint8_t rx_debug = 0;
 
 void Debug_Init(void)
 {
-    HAL_UART_Receive_IT(UART_DEBUG, rx_debug, 1);
+    HAL_UART_Receive_IT(UART_DEBUG, &rx_debug, 1);
 }
 
 void debug_callback(void)
@@ -30,7 +30,7 @@ void debug_callback(void)
     {
         HAL_NVIC_SystemReset();
     }
-    HAL_UART_Receive_IT(UART_DEBUG, rx_debug, 1);
+    HAL_UART_Receive_IT(UART_DEBUG, &rx_debug, 1);
 }
 
 #if DEBUG == 1

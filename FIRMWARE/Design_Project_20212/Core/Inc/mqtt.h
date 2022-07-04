@@ -51,6 +51,17 @@ typedef struct
     mqttReceive_t mqttReceive;
 } MQTT_t;
 
+typedef enum
+{
+    MQTT_OK,
+    MQTT_NOK
+} MQTT_ST_T;
+
+typedef struct
+{
+    SIM_ST_t SIM_ST;
+    MQTT_ST_T MQTT_ST;
+} MQTT_ST_t;
 
 //------------------------------------------------------------------------------------------------------------
 

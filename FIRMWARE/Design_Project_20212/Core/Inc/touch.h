@@ -29,21 +29,19 @@ extern UART_HandleTypeDef huart1;
 
 //------------ define type --------------
 
-typedef void (*pFunc_t)(void);
 
 typedef struct
 {
-    uint16_t pos_x;
-    uint16_t pos_y;
+    const uint16_t pos_x;
+    const uint16_t pos_y;
 
-    uint16_t shape_r;
-    uint16_t shape_w;
-    uint16_t shape_h;
+    const uint16_t shape_r;
+    const uint16_t shape_w;
+    const uint16_t shape_h;
 
-    uint16_t color;
+    const uint16_t color;
 
     bool state;
-    pFunc_t pHandlerFunc;
 
 } myButton_t;
 
@@ -54,5 +52,7 @@ void ILI9341_TouchUnselect();
 
 bool ILI9341_TouchPressed();
 bool ILI9341_TouchGetCoordinates(uint16_t* x, uint16_t* y);
+
+bool ILI9341_checkButton(uint16_t x, uint16_t y, myButton_t* button);
 
 #endif // __ILI9341_TOUCH_H__

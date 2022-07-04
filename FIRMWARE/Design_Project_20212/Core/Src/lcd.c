@@ -1,6 +1,17 @@
 #include "stm32f1xx_hal.h"
 #include "lcd.h"
 
+void ILI9341_LCD_LED(bool state)
+{
+    if (state == true)
+    {
+        HAL_GPIO_WritePin(ILI9341_LED_GPIO_Port, ILI9341_LED_Pin, SET);
+    }
+    else
+    {
+        HAL_GPIO_WritePin(ILI9341_LED_GPIO_Port, ILI9341_LED_Pin, RESET);
+    }
+}
 
 static void ILI9341_Select()
 {
@@ -219,7 +230,7 @@ void ILI9341_Init()
 
     ILI9341_Unselect();
 
-    HAL_GPIO_WritePin(ILI9341_LED_GPIO_Port, ILI9341_LED_Pin, SET);
+    ILI9341_LCD_LED(true);
 }
 
 void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
