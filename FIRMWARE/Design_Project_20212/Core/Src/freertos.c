@@ -135,6 +135,12 @@ const static myButton_t toPageRight = {
   .color = ILI9341_LIGHTBLUE,
   .shape_r = 28
 };
+const static myButton_t toRightPage = {
+  .pos_x = 90,
+  .pos_y = 208,
+  .color = ILI9341_GRAYBLUE,
+  .shape_r = 28
+};
 const static myButton_t bStart = {
   .pos_x = 130,
   .pos_y = 193,
@@ -361,6 +367,12 @@ void LCDTASK(void *argument)
 
   ds1307_get_current_date(&myRTC.Date);
   ds1307_get_current_time(&myRTC.Time);
+
+  ILI9341_FillRectangle(0, 0, 320, 25, ILI9341_BLACK);
+  ILI9341_WriteString(10, 10, "SIM: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  ILI9341_WriteString(80, 10, "GPRS: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  ILI9341_WriteString(150, 10, "MQTT: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);  
+  ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
   
   Main_page();
 
@@ -390,6 +402,7 @@ void LCDTASK(void *argument)
       xTimerReset(LCD_SleepHandle, 100);
       if (isSleep == true)
       {
+        logPC("LCD awake!\n");
         ILI9341_LCD_LED(true);
         osTimerStart(LCD_TimerHandle, 5000);
         isSleep = false;
@@ -492,7 +505,7 @@ void SIMTASK(void *argument)
       }
       timeSIM = HAL_GetTick();
     }
-    if ((MQTT_Status.MQTT_ST != MQTT_OK) || (MQTT.mqttServer.connect == 0))
+    if ((MQTT_Status.MQTT_ST != MQTT_OK) || (MQTT.mqttServer.connect == 0) || (MQTT_Status.SIM_ST != SIM_GPRS_OK))
     {
       if (Connect_MQTT() == true)
       {
@@ -555,8 +568,8 @@ void SENSOR_Task(void *argument)
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
   max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
-  max30102_set_led_current_1(&MAX30102, 6.2);
-  max30102_set_led_current_2(&MAX30102, 6.2);
+  max30102_set_led_current_1(&MAX30102, 4);
+  max30102_set_led_current_2(&MAX30102, 4);
 
   // Enter SpO2 mode
   max30102_set_mode(&MAX30102, max30102_spo2);
@@ -584,7 +597,7 @@ void SENSOR_Task(void *argument)
   // ds1307_set_current_time(&myRTC.Time);
 
   MAX30102.Peak.nPeak = 0;
-  memset(&MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
+  memset(MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
   memset(tHR, '\0', sizeof(tHR));
   lastTime = HAL_GetTick();
   TimeHR = HAL_GetTick();
@@ -643,88 +656,135 @@ void SENSOR_Task(void *argument)
       // logPC("$%i %i %i;", (int)MPU6050.KalmanAngleX, (int)MPU6050.KalmanAngleY, (int)MPU6050.KalmanAngleZ);
 #endif
 
+      max30102_read_fifo(&MAX30102);
+
+      count = 0;
+      while (MAX30102._ir_samples[count] != '\0')
+      {
+        IR_Value[IR_Count++] = MAX30102._ir_samples[count++];
+      }
+
       if (IR_Count >= 200)
       {
-        isDataValid = true;
-        for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
-        {
-          if (IR_Value[i] < 30000*5)
+        // if ((IR_Value[0] == 262143) && (IR_Value[1] == 262143))
+        // {
+        //   max30102_reset(&MAX30102);
+        //   max30102_init(&MAX30102, &hi2c1);
+        //   max30102_reset(&MAX30102);
+        //   max30102_clear_fifo(&MAX30102);
+        //   max30102_set_fifo_config(&MAX30102, max30102_smp_ave_8, 1, 5);
+          
+        //   // Sensor settings
+        //   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
+        //   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
+        //   max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
+        //   max30102_set_led_current_1(&MAX30102, 4);
+        //   max30102_set_led_current_2(&MAX30102, 4);
+
+        //   // Enter SpO2 mode
+        //   max30102_set_mode(&MAX30102, max30102_spo2);
+        //   max30102_set_a_full(&MAX30102, 0);
+          
+        //   // Initiate 1 temperature measurement
+        //   max30102_set_die_temp_en(&MAX30102, 0);
+        //   max30102_set_die_temp_rdy(&MAX30102, 0);
+          
+        //   max30102_read(&MAX30102, 0x00, en_reg, 1);
+        //   isDataValid = false;
+        //   memset(IR_Value, '\0', sizeof(IR_Value));
+        //   IR_Count = 0;
+        //   osDelay(100);
+        // }
+        // else
+        // {
+          isDataValid = true;
+          for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
           {
-            isDataValid = false;
-            logPC("Finger OFF\n");
-          }
-          else
-          {
-            if ((i >= 2) && (i <= 197))
+            if (IR_Value[i] < 35000*5)
             {
-              IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
-              IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
-              IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
-              RD_Value[i-1] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i]) / 3;
-              RD_Value[i] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i] + RD_Value[i+1] + RD_Value[i+2]) / 5;
-              RD_Value[i+1] = (RD_Value[i+2] + RD_Value[i+1] + RD_Value[i]) / 3;
+              isDataValid = false;
+              logPC("Finger OFF\n");
             }
-  #if PLOT == 1
-            logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
-  #endif
+            else
+            {
+              if ((i >= 2) && (i <= 197))
+              {
+                IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
+                IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
+                IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
+                // RD_Value[i-1] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i]) / 3;
+                // RD_Value[i] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i] + RD_Value[i+1] + RD_Value[i+2]) / 5;
+                // RD_Value[i+1] = (RD_Value[i+2] + RD_Value[i+1] + RD_Value[i]) / 3;
+              }
+#if PLOT == 1
+              logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
+#endif
+            }
           }
-        }
+        // }
+        
 
         if (isDataValid == true)
         {
           logPC("Finger ON\n");
           MAX30102.Peak.nPeak = 0;
-          memset(&MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
+          for (uint8_t i = 0; i < 10; i++)
+          {
+            MAX30102.Peak.peakLoc[i] = '\0';
+          }
 
           maxim_find_peaks(&MAX30102, IR_Value, (uint8_t)200);
 
-          uint32_t gap = 1;
-          for (int i = 0; i < (MAX30102.Peak.nPeak-1); i++)
+          if (MAX30102.Peak.nPeak > 1)
           {
-            gap = gap + (MAX30102.Peak.peakLoc[i+1] - MAX30102.Peak.peakLoc[i]);
-          }
-
-          uint8_t tHeartRate = (uint8_t)((60000.0 * MAX30102.Peak.nPeak) / (gap * (MAX30102.deltaTSample*2)));
-          if ((tHeartRate >= 55) && (tHeartRate <= 140))
-          {
-            TimeHR = HAL_GetTick();
-            tHR[0] = tHR[1];
-            tHR[1] = tHR[2];
-            tHR[2] = tHR[3];
-            tHR[3] = tHeartRate;
-            if (tHR[0] != '\0')
+            uint32_t gap = 1;
+            for (uint8_t i = 0; i < (MAX30102.Peak.nPeak-1); i++)
             {
-              HeartRate = (uint8_t)((tHR[0] + tHR[1] + tHR[2] + tHR[3]) / 4);
-              logPC("Heart Rate: %d BPM\n", HeartRate);
+              gap += (MAX30102.Peak.peakLoc[i+1] - MAX30102.Peak.peakLoc[i]);
+            }
+
+            uint8_t tHeartRate = (uint8_t)((60000.0 * MAX30102.Peak.nPeak) / (gap * (MAX30102.deltaTSample*2)));
+            if ((tHeartRate >= 55) && (tHeartRate <= 140))
+            {
+              TimeHR = HAL_GetTick();
+              tHR[0] = tHR[1];
+              tHR[1] = tHR[2];
+              tHR[2] = tHR[3];
+              tHR[3] = tHeartRate;
+              if (tHR[0] != '\0')
+              {
+                HeartRate = (uint8_t)((tHR[0] + tHR[1] + tHR[2] + tHR[3]) / 4);
+                logPC("Heart Rate: %d BPM\n", HeartRate);
+              }
             }
           }
-          osDelay(50);
         }
 
         memset(IR_Value, '\0', 200*4);
+        // for (uint8_t i = 0; i < 200; i++)
+        // {
+        //   IR_Value[i] = '\0';
+        // }
         // memset(RD_Value, '\0', 200*4);
+        // for (uint8_t i = 200; IR_Value[i] != '\0'; i++)
+        // {
+        //   IR_Value[i-200] = IR_Value[i];
+        //   IR_Value[i] = '\0';
+        // }
         memcpy(IR_Value, IR_Value+200, 50*4);
         // memcpy(RD_Value, RD_Value+200, 50*4);
-        IR_Count -= 199;
+        // IR_Count = 0;
+        // while (IR_Value[IR_Count++] != '\0');
+        // IR_Count--;
+        IR_Count -= 200;
         // RD_Count -= 199;
       }
-
-      max30102_read_fifo(&MAX30102);
-
-      count = 0;
-      while ((MAX30102._ir_samples[count] != '\0') && (MAX30102._red_samples[count] != '\0'))
-      {
-        IR_Value[IR_Count++] = MAX30102._ir_samples[count];
-        // RD_Value[RD_Count++] = MAX30102._red_samples[count];
-        count++;
-      }
+    
     }
     else
     {
       runTick = HAL_GetTick();
     }
-
-    
     osDelay(50);
   }
   /* USER CODE END SENSOR_Task */
@@ -756,6 +816,7 @@ void Touch_Timer_Callback(void *argument)
 void LCD_Sleep_Callback(void *argument)
 {
   /* USER CODE BEGIN LCD_Sleep_Callback */
+  logPC("LCD asleep!\n");
   ILI9341_LCD_LED(false);
   osTimerStop(LCD_TimerHandle);
   isSleep = true;
@@ -793,6 +854,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
 }
 
+//============================================================================================
 
 bool Connect_MQTT(void)
 {
@@ -1026,6 +1088,14 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
     }
     case DATA_PAGE:
     {
+      if (ILI9341_checkButton(x, y, &toPageLeft))
+      {
+        CurrentPage = MAIN_PAGE;
+      }
+      else if (ILI9341_checkButton(x, y, &toRightPage))
+      {
+        CurrentPage = MP3_PAGE;
+      }
       break;
     }
     default:
@@ -1039,13 +1109,10 @@ void Main_page(void)
 {
   //========================================== CLEAR ================================================
 
-  ILI9341_FillScreen(ILI9341_BLACK);
+  // ILI9341_FillScreen(ILI9341_BLACK);
+  ILI9341_FillRectangle(0, 25, 320, 240, ILI9341_BLACK);
 
   //========================================= HEADER ========================================================
-
-  ILI9341_WriteString(10, 10, "SIM: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
-  ILI9341_WriteString(80, 10, "GPRS: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
-  ILI9341_WriteString(150, 10, "MQTT: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
   if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
   {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
@@ -1059,8 +1126,7 @@ void Main_page(void)
   {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
   else  
   {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
-  
-  ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
   intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
   ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
   ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
@@ -1137,15 +1203,12 @@ void Main_page(void)
 
 void Mp3_page(void)
 {
-    //========================================== CLEAR ================================================
+  //========================================== CLEAR ================================================
 
-  ILI9341_FillScreen(ILI9341_BLACK);
+  // ILI9341_FillScreen(ILI9341_BLACK);
+  ILI9341_FillRectangle(0, 25, 320, 240, ILI9341_BLACK);
 
   //========================================= HEADER ========================================================
-
-  ILI9341_WriteString(10, 10, "SIM: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
-  ILI9341_WriteString(80, 10, "GPRS: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
-  ILI9341_WriteString(150, 10, "MQTT: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
   if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
   {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
@@ -1159,9 +1222,7 @@ void Mp3_page(void)
   {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
   else  
   {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
-      
-  
-  ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
   intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
   ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
   ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
@@ -1207,6 +1268,39 @@ void Mp3_page(void)
 
 void Graph_page(void)
 {
+  //========================================== CLEAR ================================================
+
+  // ILI9341_FillScreen(ILI9341_BLACK);
+  ILI9341_FillRectangle(0, 25, 320, 240, ILI9341_BLACK);
+
+  //========================================= HEADER ========================================================
+
+  if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+  {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(45, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  if (MQTT_Status.SIM_ST == SIM_GPRS_OK)
+  {ILI9341_WriteString(122, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(122, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  if ((MQTT_Status.MQTT_ST == MQTT_OK) && (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+  {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  
+  intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
+  ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
+  ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+  //=====================================================================================================
+
+  ILI9341_FillCircle(toPageLeft.pos_x, toPageLeft.pos_y, toPageLeft.shape_r, ILI9341_LIGHTBLUE);
+  ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
+  ILI9341_FillTriangle(toPageLeft.pos_x, toPageLeft.pos_y-15, toPageLeft.pos_x-20, toPageLeft.pos_y, toPageLeft.pos_x, toPageLeft.pos_y+15, ILI9341_WHITE);
+
+  ILI9341_FillCircle(toRightPage.pos_x, toRightPage.pos_y, toRightPage.shape_r, ILI9341_LIGHTBLUE);
+  ILI9341_FillRectangle(toRightPage.pos_x-15, toRightPage.pos_y-10, 15, 20, ILI9341_WHITE);
+  ILI9341_FillTriangle(toRightPage.pos_x, toRightPage.pos_y-15, toRightPage.pos_x+20, toRightPage.pos_y, toRightPage.pos_x, toRightPage.pos_y+15, ILI9341_WHITE);
 
 }
 

@@ -393,7 +393,6 @@ void max30102_read_fifo(max30102_t *obj)
 
     obj->deltaTSample = (HAL_GetTick() - obj->lastTSample) / num_samples;
 
-
     memset(obj->_ir_samples, '\0', sizeof(obj->_ir_samples));
     memset(obj->_red_samples, '\0', sizeof(obj->_red_samples));
 
