@@ -585,8 +585,8 @@ void SENSOR_Task(void *argument)
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
   max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
-  max30102_set_led_current_1(&MAX30102, 4);
-  max30102_set_led_current_2(&MAX30102, 4);
+  max30102_set_led_current_1(&MAX30102, 7);
+  max30102_set_led_current_2(&MAX30102, 7);
 
   // Enter SpO2 mode
   max30102_set_mode(&MAX30102, max30102_spo2);
