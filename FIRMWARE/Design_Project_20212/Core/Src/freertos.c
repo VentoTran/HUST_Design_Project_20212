@@ -38,6 +38,7 @@
 #include "mqtt.h"
 #include "DFPLAYER_MINI.h"
 #include "timers.h"
+#include "topic.h"
 
 /* USER CODE END Includes */
 
@@ -64,8 +65,9 @@ typedef struct
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define ADC_GAIN    (1.46527)
-#define MAX_VOL     (4.22)
+#define ADC_GAIN      (1.46527)
+#define MAX_VOL       (4.22)
+#define IR_THRESHOLD  (30000)
 
 #define MAIN_PAGE   0
 #define MP3_PAGE    1
@@ -111,6 +113,7 @@ static uint8_t RD_Count = 0;
 static uint8_t count = 0;
 static uint8_t tHR[4] = {0};
 static bool isDataValid = false;
+static bool isNewTime = false;
 
 static Battery_t Batt = {
   .Perc_Batt = 0,
@@ -210,7 +213,7 @@ const osThreadAttr_t LCD_Task_attributes = {
 osThreadId_t SIM_TaskHandle;
 const osThreadAttr_t SIM_Task_attributes = {
   .name = "SIM_Task",
-  .stack_size = 200 * 4,
+  .stack_size = 220 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SEN_Task */
@@ -257,38 +260,6 @@ void Touch_Timer_Callback(void *argument);
 void LCD_Sleep_Callback(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
-
-/* Hook prototypes */
-void configureTimerForRunTimeStats(void);
-unsigned long getRunTimeCounterValue(void);
-void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
-
-/* USER CODE BEGIN 1 */
-/* Functions needed when configGENERATE_RUN_TIME_STATS is on */
-__weak void configureTimerForRunTimeStats(void)
-{
-
-}
-
-__weak unsigned long getRunTimeCounterValue(void)
-{
-  return 0;
-}
-/* USER CODE END 1 */
-
-/* USER CODE BEGIN 4 */
-void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
-{
-  /* Run time stack overflow checking is performed if
-  configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
-  called if a stack overflow is detected. */
-
-  logPC("Stack Over Flow!\n");
-
-  __NVIC_SystemReset();
-
-}
-/* USER CODE END 4 */
 
 /**
   * @brief  FreeRTOS initialization
@@ -365,9 +336,13 @@ void LCDTASK(void *argument)
   ILI9341_Init();
   isTouch = false;
 
-  ds1307_get_current_date(&myRTC.Date);
-  ds1307_get_current_time(&myRTC.Time);
-
+  do
+  {
+    ds1307_get_current_date(&myRTC.Date);
+    ds1307_get_current_time(&myRTC.Time);
+  }
+  while (myRTC.Time.minutes >= 60);
+  
   ILI9341_FillRectangle(0, 0, 320, 25, ILI9341_BLACK);
   ILI9341_WriteString(10, 10, "SIM: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
   ILI9341_WriteString(80, 10, "GPRS: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
@@ -383,9 +358,11 @@ void LCDTASK(void *argument)
   osTimerStart(LCD_TimerHandle, 5000);
   osTimerStart(Touch_TimerHandle, 50);
   osTimerStart(LCD_SleepHandle, 120000);
+  // osThreadSuspend(LCD_TaskHandle);
   /* Infinite loop */
   for(;;)
   {
+    
     osDelay(1);
     if ((HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET) && (isTouch == true))
     {
@@ -457,6 +434,7 @@ void SIMTASK(void *argument)
   // osThreadSuspend(SIM_TaskHandle);
   // osDelay(2000);
   uint32_t timeSIM = HAL_GetTick();
+  uint32_t timePUB = HAL_GetTick();
 
   while ((SIM_Init() != true) && ((HAL_GetTick() - timeSIM) <= 20000))
   {
@@ -470,9 +448,11 @@ void SIMTASK(void *argument)
   if (Connect_MQTT() == true)
   {
     osDelay(1000);
-    MQTT_Pub("mandevices/running", "1");
+    MQTT_Pub(STATUS_TOPIC, "1");
+    // osDelay(1000);
+    // MQTT_Sub(PING_TOPIC);
     osDelay(1000);
-    MQTT_Sub("mandevices/pingtest");
+    MQTT_Sub(TIME_TOPIC);
   }
 
   osDelay(500);
@@ -484,6 +464,7 @@ void SIMTASK(void *argument)
   DF_Sleep();
 
   // osTimerStart(MQTT_TimerHandle, 30000);
+  timePUB = HAL_GetTick();
 
   /* Infinite loop */
   for(;;)
@@ -509,8 +490,10 @@ void SIMTASK(void *argument)
     {
       if (Connect_MQTT() == true)
       {
+        // osDelay(1000);
+        // MQTT_Sub(PING_TOPIC);
         osDelay(1000);
-        MQTT_Sub("mandevices/pingtest");
+        MQTT_Sub(TIME_TOPIC);
         timeSIM = HAL_GetTick();
       }
     }
@@ -520,8 +503,39 @@ void SIMTASK(void *argument)
       logPC("MQTT Received from topic \"%s\", message is \"%s\"\n", MQTT.mqttReceive.topic, MQTT.mqttReceive.payload);
       MQTT.mqttReceive.newEvent = 0;
       SIM_clearRX();
+      if (strstr(MQTT.mqttReceive.topic, "time") != NULL)
+      {
+        char* token = strtok(MQTT.mqttReceive.payload, ",");
+        myRTC.Date.year = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Date.month = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Date.day = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Date.date = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Time.hours = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Time.minutes = atoi(token);
+        token = strtok(NULL, ",");
+        myRTC.Time.seconds = atoi(token);
+        isNewTime = true;
+      }
       HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
       timeSIM = HAL_GetTick();
+    }
+    if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 15000))
+    {
+      char Upload[50] = {0};
+      sprintf(Upload, "{\"HeartRate\":%03d,\"Step\":%06d,\"Period\":%03d}", HeartRate, Step, TimeRun);
+      logPC("Data packet is %s\n", Upload);
+      MQTT_Pub(DATA_TOPIC, Upload);
+      timeSIM = HAL_GetTick();
+      timePUB = HAL_GetTick();
+    }
+    else if ((DeviceState == STOP) || (DeviceState == PAUSE))
+    {
+      timePUB = HAL_GetTick();
     }
   }
   /* USER CODE END SIMTASK */
@@ -584,13 +598,13 @@ void SENSOR_Task(void *argument)
   osDelay(100);
 
   // myRTC.Date.year = 22;
-  // myRTC.Date.month = 7;
-  // myRTC.Date.day = SUNDAY;
-  // myRTC.Date.date = 3;
+  // myRTC.Date.month = 8;
+  // myRTC.Date.day = SATURDAY;
+  // myRTC.Date.date = 6;
 
-  // myRTC.Time.hours = 12;
-  // myRTC.Time.minutes = 17;
-  // myRTC.Time.seconds = 30;
+  // myRTC.Time.hours = 17;
+  // myRTC.Time.minutes = 2;
+  // myRTC.Time.seconds = 0;
   // myRTC.Time.time_format = TIME_FORMAT_24HRS;
 
   // ds1307_set_current_date(&myRTC.Date);
@@ -619,15 +633,22 @@ void SENSOR_Task(void *argument)
       getTime = HAL_GetTick();
     }
 
+    if (isNewTime == true)
+    {
+      ds1307_set_current_date(&myRTC.Date);
+      ds1307_set_current_time(&myRTC.Time);
+      isNewTime = false;
+    }
+
     if ((HAL_GetTick() - lastTime) >= 30000)
     {
       char buf[5] = {0};
-      logPC("HELLO! Now is %02d/%02d/%d %02d:%02d:%02d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
+      logPC("HELLO! Now is %02d/%02d/%02d %02d:%02d:%02d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
       // logPC("ADC 12-bit value is %hu\n", Batt.Voltage_12bits[0]);
       // ftoa(Batt.Voltage_V, buf, 2);
       // logPC("ADC Voltage is %s\n", buf);
       // memset(buf, '\0', sizeof(buf));
-      ftoa(Batt.Voltage_Batt, buf, 2);
+      ftoa0(Batt.Voltage_Batt, buf, 2);
       logPC("Batt Voltage is %s\n", buf);
       logPC("Percent Battery is %hd\n", Batt.Perc_Batt);
       lastTime = HAL_GetTick();
@@ -666,41 +687,10 @@ void SENSOR_Task(void *argument)
 
       if (IR_Count >= 200)
       {
-        // if ((IR_Value[0] == 262143) && (IR_Value[1] == 262143))
-        // {
-        //   max30102_reset(&MAX30102);
-        //   max30102_init(&MAX30102, &hi2c1);
-        //   max30102_reset(&MAX30102);
-        //   max30102_clear_fifo(&MAX30102);
-        //   max30102_set_fifo_config(&MAX30102, max30102_smp_ave_8, 1, 5);
-          
-        //   // Sensor settings
-        //   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
-        //   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
-        //   max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
-        //   max30102_set_led_current_1(&MAX30102, 4);
-        //   max30102_set_led_current_2(&MAX30102, 4);
-
-        //   // Enter SpO2 mode
-        //   max30102_set_mode(&MAX30102, max30102_spo2);
-        //   max30102_set_a_full(&MAX30102, 0);
-          
-        //   // Initiate 1 temperature measurement
-        //   max30102_set_die_temp_en(&MAX30102, 0);
-        //   max30102_set_die_temp_rdy(&MAX30102, 0);
-          
-        //   max30102_read(&MAX30102, 0x00, en_reg, 1);
-        //   isDataValid = false;
-        //   memset(IR_Value, '\0', sizeof(IR_Value));
-        //   IR_Count = 0;
-        //   osDelay(100);
-        // }
-        // else
-        // {
           isDataValid = true;
           for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
           {
-            if (IR_Value[i] < 35000*5)
+            if (IR_Value[i] < IR_THRESHOLD*5)
             {
               isDataValid = false;
               logPC("Finger OFF\n");
@@ -712,18 +702,13 @@ void SENSOR_Task(void *argument)
                 IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
                 IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
                 IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
-                // RD_Value[i-1] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i]) / 3;
-                // RD_Value[i] = (RD_Value[i-2] + RD_Value[i-1] + RD_Value[i] + RD_Value[i+1] + RD_Value[i+2]) / 5;
-                // RD_Value[i+1] = (RD_Value[i+2] + RD_Value[i+1] + RD_Value[i]) / 3;
               }
 #if PLOT == 1
               logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
 #endif
             }
           }
-        // }
         
-
         if (isDataValid == true)
         {
           logPC("Finger ON\n");
@@ -761,23 +746,8 @@ void SENSOR_Task(void *argument)
         }
 
         memset(IR_Value, '\0', 200*4);
-        // for (uint8_t i = 0; i < 200; i++)
-        // {
-        //   IR_Value[i] = '\0';
-        // }
-        // memset(RD_Value, '\0', 200*4);
-        // for (uint8_t i = 200; IR_Value[i] != '\0'; i++)
-        // {
-        //   IR_Value[i-200] = IR_Value[i];
-        //   IR_Value[i] = '\0';
-        // }
         memcpy(IR_Value, IR_Value+200, 50*4);
-        // memcpy(RD_Value, RD_Value+200, 50*4);
-        // IR_Count = 0;
-        // while (IR_Value[IR_Count++] != '\0');
-        // IR_Count--;
         IR_Count -= 200;
-        // RD_Count -= 199;
       }
     
     }
@@ -1304,6 +1274,10 @@ void Graph_page(void)
 
 }
 
+bool isPeak()
+{
+  
+}
 
 /* USER CODE END Application */
 
