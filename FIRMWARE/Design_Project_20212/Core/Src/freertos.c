@@ -67,11 +67,13 @@ typedef struct
 
 #define ADC_GAIN      (1.46527)
 #define MAX_VOL       (4.22)
-#define IR_THRESHOLD  (30000)
+#define IR_THRESHOLD  (25000)
 
 #define MAIN_PAGE   0
 #define MP3_PAGE    1
 #define DATA_PAGE   2
+
+#define ABS(x) ((x)<0 ? -(x) : (x))
 
 /* USER CODE END PD */
 
@@ -245,6 +247,7 @@ const osTimerAttr_t LCD_Sleep_attributes = {
 bool Connect_MQTT(void);
 void updateParameter(uint8_t page);
 void handleTouch(uint16_t x, uint16_t y, uint8_t page);
+bool isPeak(int8_t* buffer, uint8_t size, uint8_t bandWith, int8_t minHeight, uint8_t numFlatPeak);
 
 void Main_page(void);
 void Mp3_page(void);
@@ -447,7 +450,7 @@ void SIMTASK(void *argument)
 
   if (Connect_MQTT() == true)
   {
-    osDelay(1000);
+    osDelay(2000);
     MQTT_Pub(STATUS_TOPIC, "1");
     // osDelay(1000);
     // MQTT_Sub(PING_TOPIC);
@@ -524,7 +527,7 @@ void SIMTASK(void *argument)
       HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
       timeSIM = HAL_GetTick();
     }
-    if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 15000))
+    if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 10000))
     {
       char Upload[50] = {0};
       sprintf(Upload, "{\"HeartRate\":%03d,\"Step\":%06d,\"Period\":%03d}", HeartRate, Step, TimeRun);
@@ -597,19 +600,6 @@ void SENSOR_Task(void *argument)
   max30102_read(&MAX30102, 0x00, en_reg, 1);
   osDelay(100);
 
-  // myRTC.Date.year = 22;
-  // myRTC.Date.month = 8;
-  // myRTC.Date.day = SATURDAY;
-  // myRTC.Date.date = 6;
-
-  // myRTC.Time.hours = 17;
-  // myRTC.Time.minutes = 2;
-  // myRTC.Time.seconds = 0;
-  // myRTC.Time.time_format = TIME_FORMAT_24HRS;
-
-  // ds1307_set_current_date(&myRTC.Date);
-  // ds1307_set_current_time(&myRTC.Time);
-
   MAX30102.Peak.nPeak = 0;
   memset(MAX30102.Peak.peakLoc, '\0', sizeof(MAX30102.Peak.peakLoc));
   memset(tHR, '\0', sizeof(tHR));
@@ -617,6 +607,10 @@ void SENSOR_Task(void *argument)
   TimeHR = HAL_GetTick();
   getTime = HAL_GetTick();
   runTick = HAL_GetTick();
+
+  int8_t AngleBuf[30] = {0};
+  uint8_t fromLastPeak = 0;
+  uint8_t startup = 0;
 
   // osDelay(500);
   /* Infinite loop */
@@ -630,6 +624,10 @@ void SENSOR_Task(void *argument)
       Batt.Voltage_Batt = Batt.Voltage_V * ADC_GAIN;
       Batt.Perc_Batt = (uint8_t) (Batt.Voltage_Batt * 100 / MAX_VOL);
       HAL_ADC_Start_DMA(&hadc1, (uint32_t*)Batt.Voltage_12bits, 1);
+      if (myRTC.Date.year == 8)
+      {
+        MPU6050_Init(&hi2c1);
+      }
       getTime = HAL_GetTick();
     }
 
@@ -666,6 +664,7 @@ void SENSOR_Task(void *argument)
         TimeRun++;
         runTick = HAL_GetTick();
       }
+//--------------------------------------------------------------------- MPU -------------------------------------------------------------------
       MPU6050_Read_All(&hi2c1, &MPU6050);
       if ((MPU6050.Ax == 0.0) || (MPU6050.Ay == 0.0) || (MPU6050.Az == 0.0))
       {
@@ -677,6 +676,42 @@ void SENSOR_Task(void *argument)
       // logPC("$%i %i %i;", (int)MPU6050.KalmanAngleX, (int)MPU6050.KalmanAngleY, (int)MPU6050.KalmanAngleZ);
 #endif
 
+      if (MPU6050.KalmanAngleZ != 0.0)
+      {
+        for (uint8_t i = 0; i < sizeof(AngleBuf)-1; i++)
+        {
+          AngleBuf[i] = AngleBuf[i+1];
+        }
+        AngleBuf[29] = (int8_t)MPU6050.KalmanAngleZ;
+      }
+      
+      if (startup < 30)
+      {
+        startup++;
+      }
+
+      if ((fromLastPeak >= 7) && (startup >= 30))
+      {
+        if (isPeak(AngleBuf, sizeof(AngleBuf), 14, 15, 4) == true)
+        {
+          Step++;
+          fromLastPeak = 0;
+          if (osThreadGetState(LCD_TaskHandle) == osThreadBlocked)
+          {
+            osThreadResume(LCD_TaskHandle);
+          }
+        }
+        else if (fromLastPeak < 250)
+        {
+          fromLastPeak++;
+        }
+      }
+      else if (fromLastPeak < 250)
+      {
+        fromLastPeak++;
+      }
+
+//--------------------------------------------------------------------- MAX -------------------------------------------------------------------
       max30102_read_fifo(&MAX30102);
 
       count = 0;
@@ -1274,9 +1309,45 @@ void Graph_page(void)
 
 }
 
-bool isPeak()
+/**
+ * @brief Function call for checking peak (positive and negative) for a buffer of angle (int8)
+ * 
+ * @param buffer angle data
+ * @param size size of buffer
+ * @param bandWith number of sample need to check
+ * @param minHeight minimum height to be consider a peak
+ * @param numFlatPeak number of sample consider to be a same peak
+ * @return true - peak detected /
+ * @return false - no peak
+ */
+bool isPeak(int8_t* buffer, uint8_t size, uint8_t bandWith, int8_t minHeight, uint8_t numFlatPeak)
 {
-  
+  bool result = true;
+  if (((buffer[size-1-bandWith] - buffer[size-1-bandWith/2]) >= minHeight) && ((buffer[size-1] - buffer[size-1-bandWith/2]) >= minHeight))
+  {
+    /*  negative peak check \\\\\./////   */
+    for (uint8_t i = 0; i < (bandWith/2 - numFlatPeak/2); i++)
+    {
+      if (buffer[size-1-bandWith+i] < buffer[size-1-bandWith+i+1] || (buffer[size-1-i] < buffer[size-1-i-1]))
+      {
+        result = false;
+      }
+    }
+    return result;
+  }
+  else if (((buffer[size-1-bandWith/2] - buffer[size-1-bandWith]) >= minHeight) && ((buffer[size-1-bandWith/2] - buffer[size-1]) >= minHeight))
+  {
+    /*  positive peak check /////.\\\\\   */
+    for (uint8_t i = 0; i < (bandWith/2 - numFlatPeak/2); i++)
+    {
+      if (buffer[size-1-bandWith+i] > buffer[size-1-bandWith+i+1] || (buffer[size-1-i] > buffer[size-1-i-1]))
+      {
+        result = false;
+      }
+    }
+    return result;
+  }
+  return false;
 }
 
 /* USER CODE END Application */
