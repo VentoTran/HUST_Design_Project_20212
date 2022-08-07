@@ -87,12 +87,16 @@ typedef struct
 // extern IWDG_HandleTypeDef hiwdg;
 extern I2C_HandleTypeDef hi2c1;
 extern ADC_HandleTypeDef hadc1;
+extern IWDG_HandleTypeDef hiwdg;
+
+static bool isSystemOK = true;
 
 static Mode_t DeviceState = STOP;
 static MQTT_ST_t MQTT_Status = {
     .SIM_ST = SIM_SIMCARD_NOK,
     .MQTT_ST = MQTT_NOK
 };
+static bool isNewTime = false;
 
 extern MQTT_t MQTT;
 static char *GPSResponse;
@@ -110,12 +114,11 @@ static uint32_t Step = 0;
 static uint8_t TimeRun = 0;
 static uint32_t IR_Value[250] = {0};
 static uint8_t IR_Count = 0;
-static uint32_t RD_Value[250] = {0};
-static uint8_t RD_Count = 0;
+// static uint32_t RD_Value[250] = {0};
+// static uint8_t RD_Count = 0;
 static uint8_t count = 0;
 static uint8_t tHR[4] = {0};
 static bool isDataValid = false;
-static bool isNewTime = false;
 
 static Battery_t Batt = {
   .Perc_Batt = 0,
@@ -168,22 +171,22 @@ const static myButton_t bStop = {
   .shape_h = 30
 };
 const static myButton_t bPlay = {
-  .pos_x = 30,
-  .pos_y = 208,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 40
-};
-const static myButton_t bPrev = {
-  .pos_x = 30,
-  .pos_y = 208,
+  .pos_x = 160,
+  .pos_y = 180,
   .color = ILI9341_GRAYBLUE,
   .shape_r = 28
+};
+const static myButton_t bPrev = {
+  .pos_x = 110,
+  .pos_y = 180,
+  .color = ILI9341_GRAYBLUE,
+  .shape_r = 20
 };
 const static myButton_t bNext = {
   .pos_x = 30,
-  .pos_y = 208,
+  .pos_y = 180,
   .color = ILI9341_GRAYBLUE,
-  .shape_r = 28
+  .shape_r = 20
 };
 const static myButton_t incVol = {
   .pos_x = 30,
@@ -202,6 +205,9 @@ static char TimeFormat[8] = {0};
 static char HRFormat[4] = {0};
 static char StepFormat[7] = {0};
 static char TimeRunFormat[5] = {0};
+
+static bool isMP3Playing = false;
+static uint8_t MP3Volume = 1;
 
 /* USER CODE END Variables */
 /* Definitions for LCD_Task */
@@ -361,11 +367,18 @@ void LCDTASK(void *argument)
   osTimerStart(LCD_TimerHandle, 5000);
   osTimerStart(Touch_TimerHandle, 50);
   osTimerStart(LCD_SleepHandle, 120000);
+  if (isSystemOK == true)
+  {
+    HAL_IWDG_Refresh(&hiwdg);
+  }
   // osThreadSuspend(LCD_TaskHandle);
   /* Infinite loop */
   for(;;)
   {
-    
+    if (isSystemOK == true)
+    {
+      HAL_IWDG_Refresh(&hiwdg);
+    }
     osDelay(1);
     if ((HAL_GPIO_ReadPin(TCH_IRQ_GPIO_Port, TCH_IRQ_Pin) == GPIO_PIN_RESET) && (isTouch == true))
     {
@@ -462,9 +475,9 @@ void SIMTASK(void *argument)
 
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
-  l70_init();
+  // l70_init();
 
-  DF_Sleep();
+  // DF_Sleep();
 
   // osTimerStart(MQTT_TimerHandle, 30000);
   timePUB = HAL_GetTick();
@@ -568,6 +581,7 @@ void SENSOR_Task(void *argument)
   if ((HAL_GetTick() - lastTime) > 10000)
   {
     logPC("MPU6050 FAILED!\n");
+    isSystemOK = false;
   }
   else
   {
@@ -664,7 +678,9 @@ void SENSOR_Task(void *argument)
         TimeRun++;
         runTick = HAL_GetTick();
       }
-//--------------------------------------------------------------------- MPU -------------------------------------------------------------------
+
+      //--------------------------------------------------------------------- MPU -------------------------------------------------------------------
+
       MPU6050_Read_All(&hi2c1, &MPU6050);
       if ((MPU6050.Ax == 0.0) || (MPU6050.Ay == 0.0) || (MPU6050.Az == 0.0))
       {
@@ -672,6 +688,7 @@ void SENSOR_Task(void *argument)
         osDelay(100);
         MPU6050_Read_All(&hi2c1, &MPU6050);
       }
+
 #if PLOT == 1
       // logPC("$%i %i %i;", (int)MPU6050.KalmanAngleX, (int)MPU6050.KalmanAngleY, (int)MPU6050.KalmanAngleZ);
 #endif
@@ -711,7 +728,8 @@ void SENSOR_Task(void *argument)
         fromLastPeak++;
       }
 
-//--------------------------------------------------------------------- MAX -------------------------------------------------------------------
+      //--------------------------------------------------------------------- MAX -------------------------------------------------------------------
+
       max30102_read_fifo(&MAX30102);
 
       count = 0;
@@ -722,28 +740,27 @@ void SENSOR_Task(void *argument)
 
       if (IR_Count >= 200)
       {
-          isDataValid = true;
-          for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
+        isDataValid = true;
+        for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
+        {
+          if (IR_Value[i] < IR_THRESHOLD*5)
           {
-            if (IR_Value[i] < IR_THRESHOLD*5)
-            {
-              isDataValid = false;
-              logPC("Finger OFF\n");
-            }
-            else
-            {
-              if ((i >= 2) && (i <= 197))
-              {
-                IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
-                IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
-                IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
-              }
-#if PLOT == 1
-              logPC("$%i %i;", IR_Value[i]/5, RD_Value[i]/5);
-#endif
-            }
+            isDataValid = false;
+            logPC("Finger OFF\n");
           }
-        
+          else
+          {
+            if ((i >= 2) && (i <= 197))
+            {
+              IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
+              IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
+              IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
+            }
+#if PLOT == 1
+            logPC("$%i %i;", IR_Value[i]/5);
+#endif
+          }
+        }
         if (isDataValid == true)
         {
           logPC("Finger ON\n");
@@ -779,12 +796,10 @@ void SENSOR_Task(void *argument)
             }
           }
         }
-
         memset(IR_Value, '\0', 200*4);
         memcpy(IR_Value, IR_Value+200, 50*4);
         IR_Count -= 200;
       }
-    
     }
     else
     {
@@ -799,9 +814,19 @@ void SENSOR_Task(void *argument)
 void LCD_Timer_Callback(void *argument)
 {
   /* USER CODE BEGIN LCD_Timer_Callback */
-  if (osThreadGetState(LCD_TaskHandle) == osThreadBlocked)
+  if (isSleep != true)
   {
-    osThreadResume(LCD_TaskHandle);
+    if (osThreadGetState(LCD_TaskHandle) == osThreadBlocked)
+    {
+      osThreadResume(LCD_TaskHandle);
+    }
+  }
+  else
+  {
+    if (isSystemOK == true)
+    {
+      HAL_IWDG_Refresh(&hiwdg);
+    }
   }
   /* USER CODE END LCD_Timer_Callback */
 }
@@ -823,7 +848,7 @@ void LCD_Sleep_Callback(void *argument)
   /* USER CODE BEGIN LCD_Sleep_Callback */
   logPC("LCD asleep!\n");
   ILI9341_LCD_LED(false);
-  osTimerStop(LCD_TimerHandle);
+  // osTimerStop(LCD_TimerHandle);
   isSleep = true;
   /* USER CODE END LCD_Sleep_Callback */
 }
@@ -859,7 +884,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
 }
 
-//============================================================================================
+//============================================================================================================================
 
 bool Connect_MQTT(void)
 {
@@ -1089,6 +1114,26 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       {
         CurrentPage = MAIN_PAGE;
       }
+      else if (ILI9341_checkButton(x, y, &bPlay))
+      {
+
+      }
+      else if (ILI9341_checkButton(x, y, &bPrev))
+      {
+
+      }
+      else if (ILI9341_checkButton(x, y, &bNext))
+      {
+
+      }
+      else if (ILI9341_checkButton(x, y, &incVol))
+      {
+
+      }
+      else if (ILI9341_checkButton(x, y, &decVol))
+      {
+
+      }
       break;
     }
     case DATA_PAGE:
@@ -1234,24 +1279,29 @@ void Mp3_page(void)
 
   //=========================================== MP3 INTERFACE =================================================
 
-  ILI9341_FillRectangle(20, 55, 280, 95, ILI9341_WHITE);
-  ILI9341_DrawLine(20, 120, 300, 120, ILI9341_BLACK);
-  ILI9341_DrawLine(160, 120, 160, 150, ILI9341_BLACK);
+  // ILI9341_FillRectangle(20, 55, 280, 95, ILI9341_WHITE);
+  // ILI9341_DrawLine(20, 120, 300, 120, ILI9341_BLACK);
+  // ILI9341_DrawLine(160, 120, 160, 150, ILI9341_BLACK);
 
-  ILI9341_WriteString(110, 60, "Ten bai hat", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
-  ILI9341_WriteString(24, 90, "Am tham ben em-SonTungMTP", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
+  // ILI9341_WriteString(110, 60, "Ten bai hat", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
+  // ILI9341_WriteString(24, 90, "Am tham ben em-SonTungMTP", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
 
-  ILI9341_WriteString(40, 125, "THOI LUONG CHOI", Font_7x10, ILI9341_BLACK, ILI9341_WHITE);
+  // ILI9341_WriteString(40, 125, "THOI LUONG CHOI", Font_7x10, ILI9341_BLACK, ILI9341_WHITE);
 
 
-  ILI9341_WriteString(200, 125, "AM LUONG", Font_7x10, ILI9341_BLACK, ILI9341_WHITE);    
+  ILI9341_WriteString(200, 125, "volume:", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
-  ILI9341_FillCircle(160, 180, 28, ILI9341_WHITE);
-  ILI9341_FillTriangle(145, 160, 180, 180, 145, 200, ILI9341_BLUE);
+  // ILI9341_FillCircle(160, 180, 28, ILI9341_WHITE);
+  // ILI9341_FillTriangle(145, 160, 180, 180, 145, 200, ILI9341_BLUE);
+  ILI9341_FillCircle(bPlay.pos_x, bPlay.pos_y, bPlay.shape_r, ILI9341_WHITE);
+  ILI9341_FillTriangle(bPlay.pos_x-15, bPlay.pos_x, bPlay.pos_y, bPlay.pos_y, bPlay.pos_x-15, bPlay.pos_y+20, ILI9341_BLUE);
 
-  ILI9341_FillCircle(110, 180, 20, ILI9341_WHITE);
-  ILI9341_FillTriangle(105, 165, 92, 180, 105, 195, ILI9341_BLUE);
-  ILI9341_FillTriangle(118, 165, 105, 180, 118, 195, ILI9341_BLUE);
+  // ILI9341_FillCircle(110, 180, 20, ILI9341_WHITE);
+  // ILI9341_FillTriangle(105, 165, 92, 180, 105, 195, ILI9341_BLUE);
+  // ILI9341_FillTriangle(118, 165, 105, 180, 118, 195, ILI9341_BLUE);
+  ILI9341_FillCircle(bPrev.pos_x, bPrev.pos_y, bPrev.shape_r, ILI9341_WHITE);
+  ILI9341_FillTriangle(bPrev.pos_x, bPrev.pos_y-15, bPrev.pos_x-13, bPrev.pos_y, bPrev.pos_x, bPrev.pos_y+15, ILI9341_BLUE);
+  ILI9341_FillTriangle(bPrev.pos_x+13, bPrev.pos_y-15, bPrev.pos_x, bPrev.pos_y, bPrev.pos_x+13, bPrev.pos_y+15, ILI9341_BLUE);
 
   ILI9341_FillCircle(210, 180, 20, ILI9341_WHITE);
   ILI9341_FillTriangle(202, 165, 215, 180, 202, 195, ILI9341_BLUE);
