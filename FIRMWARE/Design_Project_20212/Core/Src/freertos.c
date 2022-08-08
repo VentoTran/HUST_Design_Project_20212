@@ -172,33 +172,33 @@ const static myButton_t bStop = {
 };
 const static myButton_t bPlay = {
   .pos_x = 160,
-  .pos_y = 180,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 28
+  .pos_y = 120,
+  .color = ILI9341_WHITE,
+  .shape_r = 35
 };
 const static myButton_t bPrev = {
-  .pos_x = 110,
-  .pos_y = 180,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 20
+  .pos_x = 90,
+  .pos_y = 120,
+  .color = ILI9341_WHITE,
+  .shape_r = 25
 };
 const static myButton_t bNext = {
-  .pos_x = 30,
-  .pos_y = 180,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 20
+  .pos_x = 230,
+  .pos_y = 120,
+  .color = ILI9341_WHITE,
+  .shape_r = 25
 };
 const static myButton_t incVol = {
-  .pos_x = 30,
-  .pos_y = 208,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 28
+  .pos_x = 200,
+  .pos_y = 180,
+  .color = ILI9341_WHITE,
+  .shape_r = 20
 };
 const static myButton_t decVol = {
-  .pos_x = 30,
-  .pos_y = 208,
-  .color = ILI9341_GRAYBLUE,
-  .shape_r = 28
+  .pos_x = 120,
+  .pos_y = 180,
+  .color = ILI9341_WHITE,
+  .shape_r = 20
 };
 static char DateFormat[22] = {0};
 static char TimeFormat[8] = {0};
@@ -481,6 +481,7 @@ void SIMTASK(void *argument)
 
   // osTimerStart(MQTT_TimerHandle, 30000);
   timePUB = HAL_GetTick();
+  uint8_t ErrorTime = 0;
 
   /* Infinite loop */
   for(;;)
@@ -494,11 +495,13 @@ void SIMTASK(void *argument)
       {
         MQTT_Status.MQTT_ST = MQTT_NOK;
         MQTT.mqttServer.connect = 0;
+        ErrorTime++;
       }
       else
       {
         MQTT.mqttServer.connect = 1;
         MQTT_Status.MQTT_ST = MQTT_OK;
+        ErrorTime = 0;
       }
       timeSIM = HAL_GetTick();
     }
@@ -510,8 +513,11 @@ void SIMTASK(void *argument)
         // MQTT_Sub(PING_TOPIC);
         osDelay(1000);
         MQTT_Sub(TIME_TOPIC);
+        ErrorTime = 0;
         timeSIM = HAL_GetTick();
       }
+      else
+      {ErrorTime++;}
     }
     if (MQTT.mqttReceive.newEvent == 1)
     {
@@ -540,7 +546,7 @@ void SIMTASK(void *argument)
       HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
       timeSIM = HAL_GetTick();
     }
-    if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 10000))
+    if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 10000) && (MQTT_Status.MQTT_ST == MQTT_OK))
     {
       char Upload[50] = {0};
       sprintf(Upload, "{\"HeartRate\":%03d,\"Step\":%06d,\"Period\":%03d}", HeartRate, Step, TimeRun);
@@ -552,6 +558,21 @@ void SIMTASK(void *argument)
     else if ((DeviceState == STOP) || (DeviceState == PAUSE))
     {
       timePUB = HAL_GetTick();
+    }
+    if (DF_getState() == PAUSING && isMP3Playing == true)
+    {
+      osDelay(100);
+      DF_Next();
+      DF_Playback();
+    }
+    if (ErrorTime >= 5)
+    {
+      ErrorTime = 5;
+      SIM_Deinit();
+      osDelay(2000);
+      SIM_Init();
+      MQTT_Status.SIM_ST = SIM_SIMCARD_NOK;
+      MQTT_Status.MQTT_ST = MQTT_NOK;
     }
   }
   /* USER CODE END SIMTASK */
@@ -1008,14 +1029,14 @@ void updateParameter(uint8_t page)
     }
     case MP3_PAGE:
     {
-
-
+      ILI9341_WriteString(200, 80, "Volume: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+      char temp[3] = {0};
+      intToStr0(MP3Volume, temp, 2);
+      ILI9341_WriteString(256, 80, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
       break;
     }
     case DATA_PAGE:
     {
-
-
       break;
     }
     default:
@@ -1053,7 +1074,18 @@ void updateButton(uint8_t page)
   }
   else if (page == MP3_PAGE)
   {
-
+    ILI9341_FillCircle(bPlay.pos_x, bPlay.pos_y, bPlay.shape_r, bPlay.color);
+    if (isMP3Playing == false)
+    {ILI9341_FillTriangle(bPlay.pos_x+20, bPlay.pos_y, bPlay.pos_x-10, bPlay.pos_y+18, bPlay.pos_x-10, bPlay.pos_y-18, ILI9341_ORANGE);}
+    else
+    {
+      ILI9341_FillRectangle(bPlay.pos_x-5-bPlay.shape_r+20, bPlay.pos_y-bPlay.shape_r/2, bPlay.shape_r-20, bPlay.shape_r, ILI9341_RED);
+      ILI9341_FillRectangle(bPlay.pos_x+5, bPlay.pos_y-bPlay.shape_r/2, bPlay.shape_r-20, bPlay.shape_r, ILI9341_RED);
+    }
+    ILI9341_WriteString(200, 80, "Volume: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+    char temp[3] = {0};
+    intToStr0(MP3Volume, temp, 2);
+    ILI9341_WriteString(256, 80, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
   }
 }
 
@@ -1116,23 +1148,31 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       }
       else if (ILI9341_checkButton(x, y, &bPlay))
       {
-
+        isMP3Playing = !isMP3Playing;
+        if (isMP3Playing == true)
+        {DF_Playback();}
+        else
+        {DF_Pause();}
       }
       else if (ILI9341_checkButton(x, y, &bPrev))
       {
-
+        DF_Previous();
       }
       else if (ILI9341_checkButton(x, y, &bNext))
       {
-
+        DF_Next();
       }
       else if (ILI9341_checkButton(x, y, &incVol))
       {
-
+        if (MP3Volume < 9)
+        {MP3Volume++;}
+        DF_SetVol(MP3Volume);
       }
       else if (ILI9341_checkButton(x, y, &decVol))
       {
-
+        if (MP3Volume > 0)
+        {MP3Volume--;}
+        DF_SetVol(MP3Volume);
       }
       break;
     }
@@ -1289,28 +1329,41 @@ void Mp3_page(void)
   // ILI9341_WriteString(40, 125, "THOI LUONG CHOI", Font_7x10, ILI9341_BLACK, ILI9341_WHITE);
 
 
-  ILI9341_WriteString(200, 125, "volume:", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  ILI9341_WriteString(200, 80, "VOLUME: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  char temp[5] = {0};
+  intToStr0(MP3Volume, temp, 2);
+  ILI9341_WriteString(256, 80, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
-  // ILI9341_FillCircle(160, 180, 28, ILI9341_WHITE);
-  // ILI9341_FillTriangle(145, 160, 180, 180, 145, 200, ILI9341_BLUE);
-  ILI9341_FillCircle(bPlay.pos_x, bPlay.pos_y, bPlay.shape_r, ILI9341_WHITE);
-  ILI9341_FillTriangle(bPlay.pos_x-15, bPlay.pos_x, bPlay.pos_y, bPlay.pos_y, bPlay.pos_x-15, bPlay.pos_y+20, ILI9341_BLUE);
+  ILI9341_WriteString(50, 80, "TRACK: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  memset(temp, sizeof(temp), '\0');
+  intToStr(DF_getCurrentSongNumber(), temp, 4);
+  ILI9341_WriteString(99, 80, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  ILI9341_WriteString(127, 80, "/", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+  memset(temp, sizeof(temp), '\0');
+  intToStr(DF_getTotalSongs(), temp, 4);
+  ILI9341_WriteString(134, 80, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
-  // ILI9341_FillCircle(110, 180, 20, ILI9341_WHITE);
-  // ILI9341_FillTriangle(105, 165, 92, 180, 105, 195, ILI9341_BLUE);
-  // ILI9341_FillTriangle(118, 165, 105, 180, 118, 195, ILI9341_BLUE);
-  ILI9341_FillCircle(bPrev.pos_x, bPrev.pos_y, bPrev.shape_r, ILI9341_WHITE);
-  ILI9341_FillTriangle(bPrev.pos_x, bPrev.pos_y-15, bPrev.pos_x-13, bPrev.pos_y, bPrev.pos_x, bPrev.pos_y+15, ILI9341_BLUE);
-  ILI9341_FillTriangle(bPrev.pos_x+13, bPrev.pos_y-15, bPrev.pos_x, bPrev.pos_y, bPrev.pos_x+13, bPrev.pos_y+15, ILI9341_BLUE);
+  ILI9341_FillCircle(bPlay.pos_x, bPlay.pos_y, bPlay.shape_r, bPlay.color);
+  if (isMP3Playing == false)
+  {ILI9341_FillTriangle(bPlay.pos_x+20, bPlay.pos_y, bPlay.pos_x-10, bPlay.pos_y+18, bPlay.pos_x-10, bPlay.pos_y-18, ILI9341_ORANGE);}
+  else
+  {
+    ILI9341_FillRectangle(bPlay.pos_x-5-bPlay.shape_r+20, bPlay.pos_y-bPlay.shape_r/2, bPlay.shape_r-20, bPlay.shape_r, ILI9341_RED);
+      ILI9341_FillRectangle(bPlay.pos_x+5, bPlay.pos_y-bPlay.shape_r/2, bPlay.shape_r-20, bPlay.shape_r, ILI9341_RED);
+  }
+  
+  ILI9341_FillCircle(bPrev.pos_x, bPrev.pos_y, bPrev.shape_r, bPrev.color);
+  ILI9341_FillTriangle(bPrev.pos_x-2, bPrev.pos_y-10, bPrev.pos_x-15, bPrev.pos_y, bPrev.pos_x-2, bPrev.pos_y+10, ILI9341_BLUE);
+  ILI9341_FillTriangle(bPrev.pos_x+11, bPrev.pos_y-10, bPrev.pos_x-2, bPrev.pos_y, bPrev.pos_x+11, bPrev.pos_y+10, ILI9341_BLUE);
 
-  ILI9341_FillCircle(210, 180, 20, ILI9341_WHITE);
-  ILI9341_FillTriangle(202, 165, 215, 180, 202, 195, ILI9341_BLUE);
-  ILI9341_FillTriangle(215, 165, 228, 180, 215, 195, ILI9341_BLUE);
+  ILI9341_FillCircle(bNext.pos_x, bNext.pos_y, bNext.shape_r, bNext.color);
+  ILI9341_FillTriangle(bNext.pos_x-11, bNext.pos_y-10, bNext.pos_x+2, bNext.pos_y, bNext.pos_x-11, bNext.pos_y+10, ILI9341_BLUE);
+  ILI9341_FillTriangle(bNext.pos_x+2, bNext.pos_y-10, bNext.pos_x+15, bNext.pos_y, bNext.pos_x+2, bNext.pos_y+10, ILI9341_BLUE);
 
-  ILI9341_FillCircle(126, 217, 17, ILI9341_WHITE);
-  ILI9341_WriteString(121, 210, "-", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
-  ILI9341_FillCircle(194, 217, 17, ILI9341_WHITE);
-  ILI9341_WriteString(190, 210, "+", Font_11x18, ILI9341_BLACK, ILI9341_WHITE);
+  ILI9341_FillCircle(decVol.pos_x, decVol.pos_y, decVol.shape_r, decVol.color);
+  ILI9341_WriteString(decVol.pos_x-5, decVol.pos_y-8, "-", Font_11x18, ILI9341_BLACK, decVol.color);
+  ILI9341_FillCircle(incVol.pos_x, incVol.pos_y, incVol.shape_r, incVol.color);
+  ILI9341_WriteString(incVol.pos_x-5, incVol.pos_y-7, "+", Font_11x18, ILI9341_BLACK, incVol.color);
 
   ILI9341_FillCircle(toPageLeft.pos_x, toPageLeft.pos_y, toPageLeft.shape_r, ILI9341_LIGHTBLUE);
   ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
