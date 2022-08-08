@@ -53,6 +53,6 @@ void ILI9341_TouchUnselect();
 bool ILI9341_TouchPressed();
 bool ILI9341_TouchGetCoordinates(uint16_t* x, uint16_t* y);
 
-bool ILI9341_checkButton(uint16_t x, uint16_t y, myButton_t* button);
+bool ILI9341_checkButton(uint16_t x, uint16_t y, const myButton_t* button);
 
 #endif // __ILI9341_TOUCH_H__

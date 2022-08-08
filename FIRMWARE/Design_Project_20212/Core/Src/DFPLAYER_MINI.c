@@ -11,6 +11,7 @@
 
 #include "DFPLAYER_MINI.h"
 #include "usart.h"
+#include "string.h"
 
 extern UART_HandleTypeDef huart4;
 #define DF_UART &huart4
@@ -22,9 +23,9 @@ uint8_t df_rx_buffer[50] = {0};
 DF_PLAYER DF = {
 	.status = false, 
 	.volume = INIT_VOL,
-	.ContinuousMode = false,
 	.currentSongNumber = 1,
-	.SDCardOK = false
+	.SDCardOK = false,
+	.totalSongs = 0
 };
 
 //----------------------------------------------------------------- Configure -----------------------------------------------------------------
@@ -58,6 +59,14 @@ void DF_RX_Callback(void)
 				else
 				{DF.SDCardOK = true;}
 			}
+			else if (df_rx_buffer[df_rx_index-7] == 0x3B)
+			{
+				DF.SDCardOK = false;
+			}
+			else if (df_rx_buffer[df_rx_index-7] == 0x48)
+			{
+				DF.totalSongs = df_rx_buffer[df_rx_index-5]*255 + df_rx_buffer[df_rx_index-4];
+			}
 		}
 		DF_Clear_RX();
 	}
@@ -66,7 +75,7 @@ void DF_RX_Callback(void)
 
 void DF_Clear_RX(void)
 {
-	memset(df_rx_buffer, sizeof(df_rx_buffer), '\0');
+	memset(df_rx_buffer, '\0', sizeof(df_rx_buffer));
 	df_rx_index = 0;
 	df_rx_char = '\0';
 }
@@ -85,6 +94,8 @@ void DF_Init(uint8_t volume)
 	Send_cmd(0x09, 0x00, 0x01);
 	HAL_Delay(200);
 	Send_cmd(0x06, 0x00, volume);
+	HAL_Delay(500);
+	Send_cmd(0x48, 0x00, 0x00);
 	HAL_Delay(500);
 	DF_Clear_RX();
 }
@@ -106,12 +117,22 @@ void DF_PlayFromStart(void)
 void DF_Next(void)
 {
 	Send_cmd(0x01, 0x00, 0x00);
+	// DF.currentSongNumber++;
+	// if (DF.currentSongNumber > DF.totalSongs)
+	// {
+	// 	DF.currentSongNumber = 1;
+	// }
 	HAL_Delay(200);
 }
 
 void DF_Previous(void)
 {
 	Send_cmd(0x02, 0, 0);
+	// DF.currentSongNumber--;
+	// if ((DF.currentSongNumber == 0) || (DF.currentSongNumber > DF.totalSongs))
+	// {
+	// 	DF.currentSongNumber = DF.totalSongs;
+	// }
 	HAL_Delay(200);
 }
 
@@ -173,12 +194,17 @@ void DF_setState(bool state)
 
 uint32_t DF_getTotalSongs(void)
 {
-	Send_cmd(0x47, 0x00, 0x00);
+	return DF.totalSongs;
 }
 
 uint32_t DF_getCurrentSongNumber(void)
 {
 	return DF.currentSongNumber;
+}
+
+void DF_setCurrentSongNumber(uint32_t number)
+{
+	DF.currentSongNumber = number;
 }
 
 

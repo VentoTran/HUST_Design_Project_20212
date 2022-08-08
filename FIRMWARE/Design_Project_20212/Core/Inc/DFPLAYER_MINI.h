@@ -33,7 +33,6 @@ typedef struct DF_PLAYER
 {
     bool status;
     uint8_t volume;
-    bool ContinuousMode;
     uint32_t totalSongs;
     uint32_t currentSongNumber;
     bool SDCardOK;
@@ -59,9 +58,11 @@ void DF_SetVol(uint8_t Level);
 // void DF_setRepeat(void);
 // void DF_setSingle(void);
 
+void DF_setState(bool state);
+void DF_setCurrentSongNumber(uint32_t number);
+
 uint8_t DF_getVol(void);
 bool DF_getState(void);
-void DF_setState(bool state);
 uint32_t DF_getTotalSongs(void);
 uint32_t DF_getCurrentSongNumber(void);
 
