@@ -50,4 +50,13 @@ int intToStr0(int x, char str[], int d);
  */
 void ftoa0(float n, char* res, int afterpoint);
 
+/**
+ * @brief generate a random number within a range
+ * 
+ * @param min_num low range
+ * @param max_num high range
+ * @return int random
+ */
+int random_number(int min_num, int max_num);
+
 #endif

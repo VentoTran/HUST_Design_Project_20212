@@ -18,6 +18,8 @@
 #include <string.h>
 
 static uint8_t rx_debug = 0;
+bool isNaize = false;
+
 
 void Debug_Init(void)
 {
@@ -29,6 +31,10 @@ void debug_callback(void)
     if (rx_debug == '^')
     {
         HAL_NVIC_SystemReset();
+    }
+    else if (rx_debug == 'F')
+    {
+        isNaize = !isNaize;
     }
     HAL_UART_Receive_IT(UART_DEBUG, &rx_debug, 1);
 }

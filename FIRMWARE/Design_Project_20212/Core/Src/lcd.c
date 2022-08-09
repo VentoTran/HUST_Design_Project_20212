@@ -560,7 +560,71 @@ void ILI9341_FillCircle(uint16_t x, uint16_t y, uint16_t r, uint16_t color)
     }
 }
 
-void ILI9341_PlotTimeGraph( uint16_t x0, uint16_t y0, uint8_t graphSizeX, 
+void ILI9341_PlotTimeGraph32( uint16_t x0, uint16_t y0, uint8_t graphSizeX, 
+                            uint32_t* Ydata, uint8_t graphSizeY, uint8_t Ymin, uint8_t DataToPixelRatio,
+                            uint16_t YlabelMin, uint16_t YlabelMid, uint16_t YlabelMax, 
+                            uint16_t XlabelMin, uint16_t XlabelMid, uint16_t XlabelMax, 
+                            char* Xunit, char* Yunit, uint16_t color)
+{
+    char temp[5] = {0};
+    
+    //================================================= Y Axis =====================================================
+    ILI9341_DrawLine(x0, y0, x0, y0 - graphSizeY, ILI9341_WHITE);
+    ILI9341_DrawLine(x0, y0 - graphSizeY, x0, y0 - graphSizeY - 10, ILI9341_WHITE);
+    ILI9341_DrawLine(x0 - 4, y0 - graphSizeY - 6, x0, y0 - graphSizeY - 10, ILI9341_WHITE);
+    ILI9341_DrawLine(x0 + 4, y0 - graphSizeY - 6, x0, y0 - graphSizeY - 10, ILI9341_WHITE);
+
+    memset(temp, '\0', sizeof(temp));
+    intToStr(YlabelMin, temp, 3);
+    ILI9341_DrawLine(x0, y0, x0 - 3, y0, ILI9341_WHITE);
+    ILI9341_WriteString(x0 - 5 - 21, y0 - 5, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+    memset(temp, '\0', sizeof(temp));
+    intToStr(YlabelMid, temp, 4);
+    ILI9341_DrawLine(x0, y0 - graphSizeY/2, x0 - 3, y0 - graphSizeY/2, ILI9341_WHITE);
+    ILI9341_WriteString(x0 - 5 - 28, y0 - graphSizeY/2 - 5, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+    memset(temp, '\0', sizeof(temp));
+    intToStr(YlabelMax, temp, 5);
+    ILI9341_DrawLine(x0, y0 - graphSizeY, x0 - 3, y0 - graphSizeY, ILI9341_WHITE);
+    ILI9341_WriteString(x0 - 5 - 35, y0 - graphSizeY - 5, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+    ILI9341_WriteString(x0, y0 - graphSizeY - 5 - 20, Yunit, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+
+    //================================================= X Axis =====================================================
+    ILI9341_DrawLine(x0, y0, x0 + graphSizeX, y0, ILI9341_WHITE);
+    ILI9341_DrawLine(x0 + graphSizeX, y0, x0 + graphSizeX + 10, y0, ILI9341_WHITE);
+    ILI9341_DrawLine(x0 + graphSizeX + 6, y0 - 4, x0 + graphSizeX + 10, y0, ILI9341_WHITE);
+    ILI9341_DrawLine(x0 + graphSizeX + 6, y0 + 4, x0 + graphSizeX + 10, y0, ILI9341_WHITE);
+
+    memset(temp, '\0', sizeof(temp));
+    intToStr(XlabelMin, temp, 1);
+    ILI9341_DrawLine(x0, y0, x0, y0 + 3, ILI9341_WHITE);
+    ILI9341_WriteString(x0 - 3, y0 + 10, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+    memset(temp, '\0', sizeof(temp));
+    intToStr(XlabelMid, temp, 3);
+    ILI9341_DrawLine(x0 + graphSizeX/2, y0, x0 + graphSizeX/2, y0 + 3, ILI9341_WHITE);
+    ILI9341_WriteString(x0 + graphSizeX/2 - 10, y0 + 10, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+    memset(temp, '\0', sizeof(temp));
+    intToStr(XlabelMax, temp, 4);
+    ILI9341_DrawLine(x0 + graphSizeX, y0, x0 + graphSizeX, y0 + 3, ILI9341_WHITE);
+    ILI9341_WriteString(x0 + graphSizeX - 14, y0 + 10, temp, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+    ILI9341_WriteString(x0 + graphSizeX + 5 + 10, y0 - 5, Xunit, Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+    //================================================= Plot Data ==================================================
+    for (uint8_t i = 0; i < graphSizeX; i++)
+    {
+        if ((Ydata[i] >= YlabelMin) && (Ydata[i] <= YlabelMax))
+        {ILI9341_DrawPixel(x0 + i, y0 - (Ydata[i] - Ymin)/DataToPixelRatio, color);}
+        else if (Ydata[i] < YlabelMin)
+        {ILI9341_DrawPixel(x0 + i, y0, color);}
+        else if (Ydata[i] > YlabelMax)
+        {ILI9341_DrawPixel(x0 + i, y0 + graphSizeY, color);}
+        
+    }
+}
+
+void ILI9341_PlotTimeGraph8( uint16_t x0, uint16_t y0, uint8_t graphSizeX, 
                             uint8_t* Ydata, uint8_t graphSizeY, uint8_t Ymin, uint8_t DataToPixelRatio,
                             uint16_t YlabelMin, uint16_t YlabelMid, uint16_t YlabelMax, 
                             uint16_t XlabelMin, uint16_t XlabelMid, uint16_t XlabelMax, 
@@ -614,17 +678,15 @@ void ILI9341_PlotTimeGraph( uint16_t x0, uint16_t y0, uint8_t graphSizeX,
     //================================================= Plot Data ==================================================
     for (uint8_t i = 0; i < graphSizeX; i++)
     {
-        if ((Ydata[i] >= YlabelMax) && (Ydata[i] <= YlabelMax))
+        if ((Ydata[i] >= YlabelMin) && (Ydata[i] <= YlabelMax))
         {ILI9341_DrawPixel(x0 + i, y0 - (Ydata[i] - Ymin)/DataToPixelRatio, color);}
-        else if (Ydata[i] < YlabelMax)
+        else if (Ydata[i] < YlabelMin)
         {ILI9341_DrawPixel(x0 + i, y0, color);}
         else if (Ydata[i] > YlabelMax)
         {ILI9341_DrawPixel(x0 + i, y0 + graphSizeY, color);}
         
     }
 }
-
-
 
 
 

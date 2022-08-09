@@ -1,6 +1,7 @@
 
 #include "helperFunc.h"
 #include "math.h"
+#include "stm32f1xx_hal.h"
 
 //-------------------------------------------------------------------------
 
@@ -105,6 +106,24 @@ void ftoa0(float n, char* res, int afterpoint)
         fpart = fpart * pow(10, afterpoint);
         intToStr((int)fpart, res + i + 1, afterpoint);
     }
+}
+
+int random_number(int min_num, int max_num)
+{
+    int result = 0, low_num = 0, hi_num = 0;
+
+    if (min_num < max_num)
+    {
+        low_num = min_num;
+        hi_num = max_num + 1; // include max_num in output
+    } else {
+        low_num = max_num + 1; // include max_num in output
+        hi_num = min_num;
+    }
+
+    srand(HAL_GetTick());
+    result = (rand() % (hi_num - low_num)) + low_num;
+    return result;
 }
 
 //--------------------------------------------------------------------------

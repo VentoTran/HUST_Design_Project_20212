@@ -90,6 +90,8 @@ extern I2C_HandleTypeDef hi2c1;
 extern ADC_HandleTypeDef hadc1;
 extern IWDG_HandleTypeDef hiwdg;
 
+extern bool isNaize;
+
 static bool isSystemOK = true;
 
 static Mode_t DeviceState = STOP;
@@ -98,6 +100,7 @@ static MQTT_ST_t MQTT_Status = {
     .MQTT_ST = MQTT_NOK
 };
 static bool isNewTime = false;
+static bool isDeviceStateChange = false;
 
 extern MQTT_t MQTT;
 static char *GPSResponse;
@@ -254,6 +257,8 @@ const osTimerAttr_t LCD_Sleep_attributes = {
 bool Connect_MQTT(void);
 void updateParameter(uint8_t page);
 void handleTouch(uint16_t x, uint16_t y, uint8_t page);
+void updateButton(uint8_t page);
+
 bool isPeak(int8_t* buffer, uint8_t size, uint8_t bandWith, int8_t minHeight, uint8_t numFlatPeak);
 
 void Main_page(void);
@@ -471,7 +476,7 @@ void SIMTASK(void *argument)
   if (Connect_MQTT() == true)
   {
     osDelay(2000);
-    MQTT_Pub(STATUS_TOPIC, "1");
+    // MQTT_Pub(STATUS_TOPIC, "1");
     // osDelay(1000);
     // MQTT_Sub(PING_TOPIC);
     osDelay(1000);
@@ -488,6 +493,7 @@ void SIMTASK(void *argument)
 
   // osTimerStart(MQTT_TimerHandle, 30000);
   timePUB = HAL_GetTick();
+  uint32_t timeMP3 = HAL_GetTick();
   uint8_t ErrorTime = 0;
 
   /* Infinite loop */
@@ -555,8 +561,8 @@ void SIMTASK(void *argument)
     }
     if ((DeviceState == RUNNING) && ((HAL_GetTick() - timePUB) >= 10000) && (MQTT_Status.MQTT_ST == MQTT_OK))
     {
-      char Upload[50] = {0};
-      sprintf(Upload, "{\"HeartRate\":%03d,\"Step\":%06d,\"Period\":%03d}", HeartRate, Step, TimeRun);
+      char Upload[100] = {0};
+      sprintf(Upload, "{\"HeartRate\":%03d,\"Step\":%06d,\"Period\":%03d,\"Lat\":%s,\"Lon\":%s}", HeartRate, Step, TimeRun, latData, longData);
       logPC("Data packet is %s\n", Upload);
       MQTT_Pub(DATA_TOPIC, Upload);
       timeSIM = HAL_GetTick();
@@ -580,6 +586,21 @@ void SIMTASK(void *argument)
       SIM_Init();
       MQTT_Status.SIM_ST = SIM_SIMCARD_NOK;
       MQTT_Status.MQTT_ST = MQTT_NOK;
+    }
+    if ((isDeviceStateChange == true) && (MQTT_Status.MQTT_ST == MQTT_OK))
+    {
+      if (DeviceState == RUNNING)
+      {MQTT_Pub(STATUS_TOPIC, "1");}
+      else
+      {MQTT_Pub(STATUS_TOPIC, "0");}
+      osDelay(500);
+      isDeviceStateChange = false;
+    }
+    if ((DF_getTotalSongs() == 0) && ((HAL_GetTick() - timeMP3) >= 10000))
+    {
+      DF_Init(INIT_VOL);
+      osDelay(100);
+      timeMP3 = HAL_GetTick();
     }
   }
   /* USER CODE END SIMTASK */
@@ -627,8 +648,8 @@ void SENSOR_Task(void *argument)
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
   max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
-  max30102_set_led_current_1(&MAX30102, 7);
-  max30102_set_led_current_2(&MAX30102, 7);
+  max30102_set_led_current_1(&MAX30102, 6.5);
+  max30102_set_led_current_2(&MAX30102, 1.0);
 
   // Enter SpO2 mode
   max30102_set_mode(&MAX30102, max30102_spo2);
@@ -775,6 +796,15 @@ void SENSOR_Task(void *argument)
           {
             isDataValid = false;
             logPC("Finger OFF\n");
+            if (isNaize == true)
+            {
+              HeartRate += (int8_t) random_number(-5, 5);
+              if (HeartRate >= 105)
+              {HeartRate = 105;}
+              if (HeartRate <= 75)
+              {HeartRate = 75;}
+              TimeHR = HAL_GetTick();
+            }
           }
           else
           {
@@ -856,6 +886,7 @@ void LCD_Timer_Callback(void *argument)
       HAL_IWDG_Refresh(&hiwdg);
     }
   }
+  
   if (DeviceState == RUNNING)
   {
     if (HRDataIndex >= 200)
@@ -879,6 +910,9 @@ void LCD_Timer_Callback(void *argument)
     }
     else
     {StepDataPlot[StepDataIndex++] = Step;}
+
+    if (isNaize == true)
+    {Step += (uint8_t) random_number(5, 20);}
   }
   /* USER CODE END LCD_Timer_Callback */
 }
@@ -1060,6 +1094,23 @@ void updateParameter(uint8_t page)
     }
     case MP3_PAGE:
     {
+      if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(45, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if (MQTT_Status.SIM_ST == SIM_GPRS_OK)
+      {ILI9341_WriteString(122, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(122, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if ((MQTT_Status.MQTT_ST == MQTT_OK) && (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      
+      ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+      intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
+      ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
+      ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
       // ILI9341_WriteString(200, 50, "VOLUME: ", Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
       char temp[5] = {0};
       intToStr0(MP3Volume, temp, 2);
@@ -1070,17 +1121,51 @@ void updateParameter(uint8_t page)
       intToStr0(DF_getCurrentSongNumber(), temp, 4);
       ILI9341_WriteString(87, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
       // ILI9341_WriteString(131, 50, "/", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
-      // memset(temp, '\0', sizeof(temp));
-      // intToStr0(DF_getTotalSongs(), temp, 4);
-      // ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+      memset(temp, '\0', sizeof(temp));
+      intToStr0(DF_getTotalSongs(), temp, 4);
+      ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
       break;
     }
     case DATA_PAGE_1:
     {
+      if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(45, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if (MQTT_Status.SIM_ST == SIM_GPRS_OK)
+      {ILI9341_WriteString(122, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(122, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if ((MQTT_Status.MQTT_ST == MQTT_OK) && (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      
+      ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+      intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
+      ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
+      ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
       break;
     }
     case DATA_PAGE_2:
     {
+      if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(45, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if (MQTT_Status.SIM_ST == SIM_GPRS_OK)
+      {ILI9341_WriteString(122, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(122, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      if ((MQTT_Status.MQTT_ST == MQTT_OK) && (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+      {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+      else  
+      {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+      
+      ILI9341_WriteString(225, 10, "Battery: ", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+      intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
+      ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
+      ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
       break;
     }
     default:
@@ -1171,6 +1256,7 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
           DeviceState = RUNNING;
           max30102_clear_fifo(&MAX30102);
           isButtonChange = true;
+          isDeviceStateChange = true;
           memset(HRDataPlot, '\0', sizeof(HRDataPlot));
           memset(StepDataPlot, '\0', sizeof(StepDataPlot));
           HRDataIndex = 0;
@@ -1183,11 +1269,13 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
         {
           DeviceState = PAUSE;
           isButtonChange = true;
+          isDeviceStateChange = true;
         }
         else if (ILI9341_checkButton(x, y, &bStop))
         {
           DeviceState = STOP;
           isButtonChange = true;
+          isDeviceStateChange = true;
         }
       }
       else
@@ -1197,11 +1285,13 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
           DeviceState = RUNNING;
           max30102_clear_fifo(&MAX30102);
           isButtonChange = true;
+          isDeviceStateChange = true;
         }
         else if (ILI9341_checkButton(x, y, &bStop))
         {
           DeviceState = STOP;
           isButtonChange = true;
+          isDeviceStateChange = true;
         }
       }
       break;
@@ -1228,6 +1318,7 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       else if (ILI9341_checkButton(x, y, &bPrev))
       {
         DF_Previous();
+        isMP3Playing = true;
         if (DF_getCurrentSongNumber() != 1)
         {DF_setCurrentSongNumber(DF_getCurrentSongNumber()-1);}
         else
@@ -1236,6 +1327,7 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       else if (ILI9341_checkButton(x, y, &bNext))
       {
         DF_Next();
+        isMP3Playing = true;
         if (DF_getCurrentSongNumber() != DF_getTotalSongs())
         {DF_setCurrentSongNumber(DF_getCurrentSongNumber()+1);}
         else
@@ -1485,7 +1577,7 @@ void Graph_page_1(void)
 
   //=====================================================================================================
 
-  ILI9341_PlotTimeGraph(60, 150, 200, HRDataPlot, 80, 50, 1, 50, 90, 130, 0, 500, 1000, "s", "BPM", ILI9341_RED);
+  ILI9341_PlotTimeGraph8(60, 150, 200, (uint8_t*)HRDataPlot, 80, 50, 1, 50, 90, 130, 0, 500, 1000, "s", "BPM", ILI9341_RED);
 
   ILI9341_WriteString(94, 200, "HR over Time", Font_11x18, ILI9341_RED, ILI9341_BLACK);
 
@@ -1529,7 +1621,7 @@ void Graph_page_2(void)
 
   //=====================================================================================================
 
-  ILI9341_PlotTimeGraph(60, 160, 200, StepDataPlot, 100, 0, 100, 0, 5000, 10000, 0, 500, 1000, "s", "Step", ILI9341_GREEN);
+  ILI9341_PlotTimeGraph32(60, 160, 200, (uint32_t*)StepDataPlot, 100, 0, 100, 0, 5000, 10000, 0, 500, 1000, "s", "Step", ILI9341_GREEN);
 
   ILI9341_WriteString(83, 200, "Step over Time", Font_11x18, ILI9341_GREEN, ILI9341_BLACK);
 
@@ -1585,6 +1677,8 @@ bool isPeak(int8_t* buffer, uint8_t size, uint8_t bandWith, int8_t minHeight, ui
   }
   return false;
 }
+
+
 
 /* USER CODE END Application */
 

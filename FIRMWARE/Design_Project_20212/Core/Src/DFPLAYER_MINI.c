@@ -62,6 +62,8 @@ void DF_RX_Callback(void)
 			else if (df_rx_buffer[df_rx_index-7] == 0x3B)
 			{
 				DF.SDCardOK = false;
+				DF.currentSongNumber = 0;
+				DF.totalSongs = 0;
 			}
 			else if (df_rx_buffer[df_rx_index-7] == 0x48)
 			{
@@ -98,6 +100,10 @@ void DF_Init(uint8_t volume)
 	Send_cmd(0x48, 0x00, 0x00);
 	HAL_Delay(500);
 	DF_Clear_RX();
+	if (DF.totalSongs == 0)
+	{DF.currentSongNumber = 0;}
+	else
+	{DF.currentSongNumber = 1;}
 }
 
 void DF_Sleep(void)
@@ -117,6 +123,7 @@ void DF_PlayFromStart(void)
 void DF_Next(void)
 {
 	Send_cmd(0x01, 0x00, 0x00);
+	DF.status = PLAYING;
 	// DF.currentSongNumber++;
 	// if (DF.currentSongNumber > DF.totalSongs)
 	// {
@@ -128,6 +135,7 @@ void DF_Next(void)
 void DF_Previous(void)
 {
 	Send_cmd(0x02, 0, 0);
+	DF.status = PLAYING;
 	// DF.currentSongNumber--;
 	// if ((DF.currentSongNumber == 0) || (DF.currentSongNumber > DF.totalSongs))
 	// {
