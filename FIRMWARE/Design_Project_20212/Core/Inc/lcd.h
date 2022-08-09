@@ -113,8 +113,8 @@ void ILI9341_FillCircle(uint16_t x, uint16_t y, uint16_t r, uint16_t color);
 
 void ILI9341_PlotTimeGraph( uint16_t x0, uint16_t y0, uint8_t graphSizeX, 
                             uint8_t* Ydata, uint8_t graphSizeY, uint8_t Ymin, uint8_t DataToPixelRatio,
-                            uint8_t YlabelMin, uint8_t YlabelMid, uint8_t YlabelMax, 
-                            uint8_t XlabelMin, uint8_t XlabelMid, uint8_t XlabelMax, 
+                            uint16_t YlabelMin, uint16_t YlabelMid, uint16_t YlabelMax, 
+                            uint16_t XlabelMin, uint16_t XlabelMid, uint16_t XlabelMax, 
                             char* Xunit, char* Yunit, uint16_t color);
 
 #endif // __ILI9341_H__

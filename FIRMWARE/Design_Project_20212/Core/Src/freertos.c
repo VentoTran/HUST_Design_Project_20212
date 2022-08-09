@@ -69,9 +69,10 @@ typedef struct
 #define MAX_VOL       (4.22)
 #define IR_THRESHOLD  (25000)
 
-#define MAIN_PAGE   0
-#define MP3_PAGE    1
-#define DATA_PAGE   2
+#define MAIN_PAGE     0
+#define MP3_PAGE      1
+#define DATA_PAGE_1   2
+#define DATA_PAGE_2   3
 
 #define ABS(x) ((x)<0 ? -(x) : (x))
 
@@ -141,12 +142,6 @@ const static myButton_t toPageRight = {
   .pos_x = 290,
   .pos_y = 208,
   .color = ILI9341_LIGHTBLUE,
-  .shape_r = 28
-};
-const static myButton_t toRightPage = {
-  .pos_x = 90,
-  .pos_y = 208,
-  .color = ILI9341_GRAYBLUE,
   .shape_r = 28
 };
 const static myButton_t bStart = {
@@ -263,7 +258,8 @@ bool isPeak(int8_t* buffer, uint8_t size, uint8_t bandWith, int8_t minHeight, ui
 
 void Main_page(void);
 void Mp3_page(void);
-void Graph_page(void);
+void Graph_page_1(void);
+void Graph_page_2(void);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -402,8 +398,9 @@ void LCDTASK(void *argument)
       if (isSleep == true)
       {
         logPC("LCD awake!\n");
+        updateParameter(CurrentPage);
         ILI9341_LCD_LED(true);
-        osTimerStart(LCD_TimerHandle, 5000);
+        // osTimerStart(LCD_TimerHandle, 5000);
         isSleep = false;
       }
       else
@@ -420,9 +417,13 @@ void LCDTASK(void *argument)
           {
             Mp3_page();
           }
-          else if (CurrentPage == DATA_PAGE)
+          else if (CurrentPage == DATA_PAGE_1)
           {
-            Graph_page();
+            Graph_page_1();
+          }
+          else if (CurrentPage == DATA_PAGE_2)
+          {
+            Graph_page_2();
           }
         }
         else
@@ -1074,7 +1075,11 @@ void updateParameter(uint8_t page)
       // ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
       break;
     }
-    case DATA_PAGE:
+    case DATA_PAGE_1:
+    {
+      break;
+    }
+    case DATA_PAGE_2:
     {
       break;
     }
@@ -1157,7 +1162,7 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       }
       else if (ILI9341_checkButton(x, y, &toPageRight))
       {
-        CurrentPage = DATA_PAGE;
+        CurrentPage = DATA_PAGE_1;
       }
       else if (DeviceState == STOP)
       {
@@ -1205,7 +1210,7 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
     {
       if (ILI9341_checkButton(x, y, &toPageLeft))
       {
-        CurrentPage = DATA_PAGE;
+        CurrentPage = DATA_PAGE_2;
       }
       else if (ILI9341_checkButton(x, y, &toPageRight))
       {
@@ -1250,15 +1255,27 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       }
       break;
     }
-    case DATA_PAGE:
+    case DATA_PAGE_2:
+    {
+      if (ILI9341_checkButton(x, y, &toPageLeft))
+      {
+        CurrentPage = DATA_PAGE_1;
+      }
+      else if (ILI9341_checkButton(x, y, &toPageRight))
+      {
+        CurrentPage = MP3_PAGE;
+      }
+      break;
+    }
+    case DATA_PAGE_1:
     {
       if (ILI9341_checkButton(x, y, &toPageLeft))
       {
         CurrentPage = MAIN_PAGE;
       }
-      else if (ILI9341_checkButton(x, y, &toRightPage))
+      else if (ILI9341_checkButton(x, y, &toPageRight))
       {
-        CurrentPage = MP3_PAGE;
+        CurrentPage = DATA_PAGE_2;
       }
       break;
     }
@@ -1440,7 +1457,7 @@ void Mp3_page(void)
   ILI9341_FillTriangle(toPageRight.pos_x, toPageRight.pos_y-15, toPageRight.pos_x+20, toPageRight.pos_y, toPageRight.pos_x, toPageRight.pos_y+15, ILI9341_WHITE);
 }
 
-void Graph_page(void)
+void Graph_page_1(void)
 {
   //========================================== CLEAR ================================================
 
@@ -1468,8 +1485,9 @@ void Graph_page(void)
 
   //=====================================================================================================
 
-  ILI9341_PlotTimeGraph(60, 100, 200, HRDataPlot, 70, 50, 1, 50, 85, 120, 0, 500, 1000, "s", "BPM", ILI9341_RED);
-  ILI9341_PlotTimeGraph(60, 220, 200, StepDataPlot, 100, 0, 100, 0, 5000, 10000, 0, 500, 1000, "s", "Step", ILI9341_GREEN);
+  ILI9341_PlotTimeGraph(60, 150, 200, HRDataPlot, 80, 50, 1, 50, 90, 130, 0, 500, 1000, "s", "BPM", ILI9341_RED);
+
+  ILI9341_WriteString(94, 200, "HR over Time", Font_11x18, ILI9341_RED, ILI9341_BLACK);
 
   //========================================================= PAGE CHANGE =======================================================================
 
@@ -1477,9 +1495,53 @@ void Graph_page(void)
   ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
   ILI9341_FillTriangle(toPageLeft.pos_x, toPageLeft.pos_y-15, toPageLeft.pos_x-20, toPageLeft.pos_y, toPageLeft.pos_x, toPageLeft.pos_y+15, ILI9341_WHITE);
 
-  ILI9341_FillCircle(toRightPage.pos_x, toRightPage.pos_y, toRightPage.shape_r, ILI9341_LIGHTBLUE);
-  ILI9341_FillRectangle(toRightPage.pos_x-15, toRightPage.pos_y-10, 15, 20, ILI9341_WHITE);
-  ILI9341_FillTriangle(toRightPage.pos_x, toRightPage.pos_y-15, toRightPage.pos_x+20, toRightPage.pos_y, toRightPage.pos_x, toRightPage.pos_y+15, ILI9341_WHITE);
+  ILI9341_FillCircle(toPageRight.pos_x, toPageRight.pos_y, toPageRight.shape_r, ILI9341_LIGHTBLUE);
+  ILI9341_FillRectangle(toPageRight.pos_x-15, toPageRight.pos_y-10, 15, 20, ILI9341_WHITE);
+  ILI9341_FillTriangle(toPageRight.pos_x, toPageRight.pos_y-15, toPageRight.pos_x+20, toPageRight.pos_y, toPageRight.pos_x, toPageRight.pos_y+15, ILI9341_WHITE);
+
+}
+
+void Graph_page_2(void)
+{
+  //========================================== CLEAR ================================================
+
+  // ILI9341_FillScreen(ILI9341_BLACK);
+  ILI9341_FillRectangle(0, 25, 320, 240, ILI9341_BLACK);
+
+  //========================================= HEADER ========================================================
+
+  if ((MQTT_Status.SIM_ST == SIM_SIMCARD_OK) || (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+  {ILI9341_WriteString(45, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(45, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  if (MQTT_Status.SIM_ST == SIM_GPRS_OK)
+  {ILI9341_WriteString(122, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(122, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  if ((MQTT_Status.MQTT_ST == MQTT_OK) && (MQTT_Status.SIM_ST == SIM_GPRS_OK))
+  {ILI9341_WriteString(192, 10, "OK ", Font_7x10, ILI9341_GREEN, ILI9341_BLACK);}
+  else  
+  {ILI9341_WriteString(192, 10, "nOK", Font_7x10, ILI9341_RED, ILI9341_BLACK);}
+  
+  intToStr(Batt.Perc_Batt, Batt.cBatt, 3);
+  ILI9341_WriteString(288, 10, Batt.cBatt, Font_7x10, ILI9341_YELLOW, ILI9341_BLACK);
+  ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
+
+  //=====================================================================================================
+
+  ILI9341_PlotTimeGraph(60, 160, 200, StepDataPlot, 100, 0, 100, 0, 5000, 10000, 0, 500, 1000, "s", "Step", ILI9341_GREEN);
+
+  ILI9341_WriteString(83, 200, "Step over Time", Font_11x18, ILI9341_GREEN, ILI9341_BLACK);
+
+  //========================================================= PAGE CHANGE =======================================================================
+
+  ILI9341_FillCircle(toPageLeft.pos_x, toPageLeft.pos_y, toPageLeft.shape_r, ILI9341_LIGHTBLUE);
+  ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
+  ILI9341_FillTriangle(toPageLeft.pos_x, toPageLeft.pos_y-15, toPageLeft.pos_x-20, toPageLeft.pos_y, toPageLeft.pos_x, toPageLeft.pos_y+15, ILI9341_WHITE);
+
+  ILI9341_FillCircle(toPageRight.pos_x, toPageRight.pos_y, toPageRight.shape_r, ILI9341_LIGHTBLUE);
+  ILI9341_FillRectangle(toPageRight.pos_x-15, toPageRight.pos_y-10, 15, 20, ILI9341_WHITE);
+  ILI9341_FillTriangle(toPageRight.pos_x, toPageRight.pos_y-15, toPageRight.pos_x+20, toPageRight.pos_y, toPageRight.pos_x, toPageRight.pos_y+15, ILI9341_WHITE);
 
 }
 
