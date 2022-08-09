@@ -1,6 +1,7 @@
 #include "stm32f1xx_hal.h"
 #include "lcd.h"
 #include "helperFunc.h"
+#include "string.h"
 
 void ILI9341_LCD_LED(bool state)
 {
