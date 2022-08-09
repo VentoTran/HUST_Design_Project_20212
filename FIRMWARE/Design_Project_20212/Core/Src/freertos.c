@@ -210,6 +210,11 @@ static bool isButtonChange = false;
 static bool isMP3Playing = false;
 static uint8_t MP3Volume = 1;
 
+static uint8_t HRDataPlot[200] = {0};
+static uint8_t HRDataIndex = 0;
+static uint32_t StepDataPlot[200] = {0};
+static uint8_t StepDataIndex = 0;
+
 /* USER CODE END Variables */
 /* Definitions for LCD_Task */
 osThreadId_t LCD_TaskHandle;
@@ -850,6 +855,30 @@ void LCD_Timer_Callback(void *argument)
       HAL_IWDG_Refresh(&hiwdg);
     }
   }
+  if (DeviceState == RUNNING)
+  {
+    if (HRDataIndex >= 200)
+    {
+      for (uint8_t i = 0; i < 199; i++)
+      {
+        HRDataPlot[i] = HRDataPlot[i+1];
+      }
+      HRDataPlot[199] = HeartRate;
+    }
+    else
+    {HRDataPlot[HRDataIndex++] = HeartRate;}
+    
+    if (StepDataIndex >= 200)
+    {
+      for (uint8_t i = 0; i < 199; i++)
+      {
+        StepDataPlot[i] = StepDataPlot[i+1];
+      }
+      StepDataPlot[199] = Step;
+    }
+    else
+    {StepDataPlot[StepDataIndex++] = Step;}
+  }
   /* USER CODE END LCD_Timer_Callback */
 }
 
@@ -1030,19 +1059,19 @@ void updateParameter(uint8_t page)
     }
     case MP3_PAGE:
     {
-      ILI9341_WriteString(200, 50, "VOLUME: ", Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
+      // ILI9341_WriteString(200, 50, "VOLUME: ", Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
       char temp[5] = {0};
       intToStr0(MP3Volume, temp, 2);
       ILI9341_WriteString(288, 50, temp, Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
 
-      ILI9341_WriteString(10, 50, "TRACK: ", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+      // ILI9341_WriteString(10, 50, "TRACK: ", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
       memset(temp, '\0', sizeof(temp));
       intToStr0(DF_getCurrentSongNumber(), temp, 4);
       ILI9341_WriteString(87, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
-      ILI9341_WriteString(131, 50, "/", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
-      memset(temp, '\0', sizeof(temp));
-      intToStr0(DF_getTotalSongs(), temp, 4);
-      ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+      // ILI9341_WriteString(131, 50, "/", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+      // memset(temp, '\0', sizeof(temp));
+      // intToStr0(DF_getTotalSongs(), temp, 4);
+      // ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
       break;
     }
     case DATA_PAGE:
@@ -1100,19 +1129,19 @@ void updateButton(uint8_t page)
       }
       isButtonChange = false;
     }
-    ILI9341_WriteString(200, 50, "VOLUME: ", Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
+    // ILI9341_WriteString(200, 50, "VOLUME: ", Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
     char temp[5] = {0};
     intToStr0(MP3Volume, temp, 2);
     ILI9341_WriteString(288, 50, temp, Font_11x18, ILI9341_YELLOW, ILI9341_BLACK);
 
-    ILI9341_WriteString(10, 50, "TRACK: ", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+    // ILI9341_WriteString(10, 50, "TRACK: ", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
     memset(temp, '\0', sizeof(temp));
     intToStr0(DF_getCurrentSongNumber(), temp, 4);
     ILI9341_WriteString(87, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
-    ILI9341_WriteString(131, 50, "/", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
-    memset(temp, '\0', sizeof(temp));
-    intToStr0(DF_getTotalSongs(), temp, 4);
-    ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+    // ILI9341_WriteString(131, 50, "/", Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
+    // memset(temp, '\0', sizeof(temp));
+    // intToStr0(DF_getTotalSongs(), temp, 4);
+    // ILI9341_WriteString(142, 50, temp, Font_11x18, ILI9341_CYAN, ILI9341_BLACK);
   }
 }
 
@@ -1137,6 +1166,10 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
           DeviceState = RUNNING;
           max30102_clear_fifo(&MAX30102);
           isButtonChange = true;
+          memset(HRDataPlot, '\0', sizeof(HRDataPlot));
+          memset(StepDataPlot, '\0', sizeof(StepDataPlot));
+          HRDataIndex = 0;
+          StepDataIndex = 0;
         }
       }
       else if (DeviceState == RUNNING)
@@ -1396,6 +1429,8 @@ void Mp3_page(void)
   ILI9341_FillCircle(incVol.pos_x, incVol.pos_y, incVol.shape_r, incVol.color);
   ILI9341_WriteString(incVol.pos_x-5, incVol.pos_y-7, "+", Font_11x18, ILI9341_BLACK, incVol.color);
 
+  //========================================================= PAGE CHANGE =======================================================================
+
   ILI9341_FillCircle(toPageLeft.pos_x, toPageLeft.pos_y, toPageLeft.shape_r, ILI9341_LIGHTBLUE);
   ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
   ILI9341_FillTriangle(toPageLeft.pos_x, toPageLeft.pos_y-15, toPageLeft.pos_x-20, toPageLeft.pos_y, toPageLeft.pos_x, toPageLeft.pos_y+15, ILI9341_WHITE);
@@ -1432,6 +1467,10 @@ void Graph_page(void)
   ILI9341_WriteString(309, 10, "%", Font_7x10, ILI9341_WHITE, ILI9341_BLACK);
 
   //=====================================================================================================
+
+
+
+  //========================================================= PAGE CHANGE =======================================================================
 
   ILI9341_FillCircle(toPageLeft.pos_x, toPageLeft.pos_y, toPageLeft.shape_r, ILI9341_LIGHTBLUE);
   ILI9341_FillRectangle(toPageLeft.pos_x, toPageLeft.pos_y-10, 15, 20, ILI9341_WHITE);
