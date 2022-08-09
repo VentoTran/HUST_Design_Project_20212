@@ -1318,6 +1318,8 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       else if (ILI9341_checkButton(x, y, &bPrev))
       {
         DF_Previous();
+        if (isMP3Playing == false)
+        {isButtonChange = true;}
         isMP3Playing = true;
         if (DF_getCurrentSongNumber() != 1)
         {DF_setCurrentSongNumber(DF_getCurrentSongNumber()-1);}
@@ -1327,6 +1329,8 @@ void handleTouch(uint16_t x, uint16_t y, uint8_t page)
       else if (ILI9341_checkButton(x, y, &bNext))
       {
         DF_Next();
+        if (isMP3Playing == false)
+        {isButtonChange = true;}
         isMP3Playing = true;
         if (DF_getCurrentSongNumber() != DF_getTotalSongs())
         {DF_setCurrentSongNumber(DF_getCurrentSongNumber()+1);}
