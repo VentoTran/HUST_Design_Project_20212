@@ -1,0 +1,6 @@
+DRC Rules Export File for PCB: D:\GitHub\HUST_Design_Project_20212\HARDWARE\DesignProject_V1_0.PcbDoc
+RuleKind=Clearance|RuleName=Antena|Scope=Board|Minimum=4.72
+RuleKind=SolderMaskExpansion|RuleName=SolderMaskExpansion|Scope=Board|Minimum=4.00
+RuleKind=Width|RuleName=Width|Scope=Board|Minimum=12.00
+RuleKind=Clearance|RuleName=Clearance|Scope=Board|Minimum=20.00
+RuleKind=ShortCircuit|RuleName=ShortCircuit|Scope=Board|Allowed=0

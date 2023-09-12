@@ -1,0 +1,8 @@
+Layer Pairs Export File for PCB: D:\GitHub\HUST_Design_Project_20212\HARDWARE\DesignProject_V1_0.PcbDoc
+LayersSetName=Top_Bot_Thru_Holes|DrillFile=designproject_v1_0-roundholes.txt|DrillLayers=gtl,g1,g2,gbl
+LayersSetName=Top_Bot_Slot_Holes|DrillFile=designproject_v1_0-slotholes.txt|DrillLayers=gtl,g1,g2,gbl
+LayersSetName=Top_MID 1_Blind_Vias|DrillFile=designproject_v1_0-roundholes.tx1|DrillLayers=gtl,g1
+LayersSetName=Top_MID 2_Blind_Vias|DrillFile=designproject_v1_0-roundholes.tx2|DrillLayers=gtl,g1,g2
+LayersSetName=MID 1_MID 2_Buried_Vias|DrillFile=designproject_v1_0-roundholes.tx3|DrillLayers=g1,g2
+LayersSetName=MID 1_Bot_Blind_Vias|DrillFile=designproject_v1_0-roundholes.tx4|DrillLayers=g1,g2,gbl
+LayersSetName=MID 2_Bot_Blind_Vias|DrillFile=designproject_v1_0-roundholes.tx5|DrillLayers=g2,gbl

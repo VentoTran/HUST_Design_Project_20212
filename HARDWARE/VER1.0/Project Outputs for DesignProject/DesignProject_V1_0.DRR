@@ -1,0 +1,69 @@
+----------------------------------------------------------------------------------------------------------------------------------
+NCDrill File Report For: DesignProject_V1_0.PcbDoc   27-May-22  10:20:22
+----------------------------------------------------------------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TXT
+ASCII SlotHoles File : DesignProject_V1_0-SlotHoles.TXT
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T1      16mil (0.4mm)                                             Round             32        PTH        0.00inch (0.00mm)
+T2      16mil (0.406mm)                                           Round             51        PTH        0.00inch (0.00mm)
+T3      30mil (0.762mm)                                           Slot              1         PTH        0.00inch (0.00mm)
+T4      31mil (0.787mm)                                           Round             8         PTH        0.00inch (0.00mm)
+T5      35mil (0.9mm)                                             Round             18        PTH        0.00inch (0.00mm)
+T6      40mil (1.016mm)                                           Slot              4         PTH        0.00inch (0.00mm)
+T7      40mil (1.02mm)                                            Round             8         PTH        0.00inch (0.00mm)
+T8      43mil (1.1mm)                                             Round             14        PTH        0.00inch (0.00mm)
+T9      51mil (1.3mm)                                             Round             1         PTH        0.00inch (0.00mm)
+T10     59mil (1.5mm)                                             Round             1         PTH        0.00inch (0.00mm)
+T11     120mil (3.048mm)                                          Round             4         PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              142
+Layer Pair : Top Layer to MID 1
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TX1
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T2      16mil (0.406mm)                                           Round             41        PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              41
+Layer Pair : Top Layer to MID 2
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TX2
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T2      16mil (0.406mm)                                           Round             34        PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              34
+Layer Pair : MID 1 to MID 2
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TX3
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T2      16mil (0.406mm)                                           Round             4         PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              4
+Layer Pair : MID 1 to Bottom Layer
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TX4
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T2      16mil (0.406mm)                                           Round             4         PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              4
+Layer Pair : MID 2 to Bottom Layer
+ASCII RoundHoles File : DesignProject_V1_0-RoundHoles.TX5
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T2      16mil (0.406mm)                                           Round             14        PTH        0.00inch (0.00mm)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              14
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              239
+----------------------------------------------------------------------------------------------------------------------------------
+Backdrill Totals                                                                    0
+
+Total Processing Time (hh:mm:ss) : 00:00:02
