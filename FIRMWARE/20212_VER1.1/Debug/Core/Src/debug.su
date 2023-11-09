@@ -1,0 +1,3 @@
+../Core/Src/debug.c:25:6:Debug_Init	0	static
+../Core/Src/debug.c:30:6:debug_callback	8	static
+../Core/Src/debug.c:72:6:logPC	0	static

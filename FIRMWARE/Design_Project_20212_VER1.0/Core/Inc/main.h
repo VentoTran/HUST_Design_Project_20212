@@ -80,6 +80,7 @@ void Error_Handler(void);
 #define PWR_STDBY_GPIO_Port GPIOB
 #define PWR_CHRG_Pin GPIO_PIN_9
 #define PWR_CHRG_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

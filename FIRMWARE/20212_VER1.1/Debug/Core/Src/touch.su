@@ -1,0 +1,4 @@
+../Core/Src/touch.c:17:13:ILI9341_TouchUnselect	0	static
+../Core/Src/touch.c:22:13:ILI9341_TouchPressed	8	static
+../Core/Src/touch.c:27:6:ILI9341_TouchGetCoordinates	64	static
+../Core/Src/touch.c:82:6:ILI9341_checkButton	4	static

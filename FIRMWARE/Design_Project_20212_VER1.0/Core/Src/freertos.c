@@ -118,8 +118,8 @@ static uint32_t Step = 0;
 static uint8_t TimeRun = 0;
 static uint32_t IR_Value[250] = {0};
 static uint8_t IR_Count = 0;
-// static uint32_t RD_Value[250] = {0};
-// static uint8_t RD_Count = 0;
+static uint32_t RD_Value[250] = {0};
+static uint8_t RD_Count = 0;
 static uint8_t count = 0;
 static uint8_t tHR[4] = {0};
 static bool isDataValid = false;
@@ -218,21 +218,21 @@ static uint8_t StepDataIndex = 0;
 osThreadId_t LCD_TaskHandle;
 const osThreadAttr_t LCD_Task_attributes = {
   .name = "LCD_Task",
-  .stack_size = 200 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SIM_Task */
 osThreadId_t SIM_TaskHandle;
 const osThreadAttr_t SIM_Task_attributes = {
   .name = "SIM_Task",
-  .stack_size = 220 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for SEN_Task */
 osThreadId_t SEN_TaskHandle;
 const osThreadAttr_t SEN_Task_attributes = {
   .name = "SEN_Task",
-  .stack_size = 200 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for LCD_Timer */
@@ -459,7 +459,8 @@ void LCDTASK(void *argument)
 void SIMTASK(void *argument)
 {
   /* USER CODE BEGIN SIMTASK */
-  // osThreadSuspend(SIM_TaskHandle);
+  SIM_Deinit();
+  osThreadSuspend(SIM_TaskHandle);
   // osDelay(2000);
   uint32_t timeSIM = HAL_GetTick();
   uint32_t timePUB = HAL_GetTick();
@@ -629,12 +630,12 @@ void SENSOR_Task(void *argument)
   }
   if ((HAL_GetTick() - lastTime) > 10000)
   {
-    logPC("MPU6050 FAILED!\n");
+    // logPC("MPU6050 FAILED!\n");
     isSystemOK = false;
   }
   else
   {
-    logPC("MPU6050 OK\n");
+    // logPC("MPU6050 OK\n");
   }
 
   osDelay(50);
@@ -642,14 +643,14 @@ void SENSOR_Task(void *argument)
   max30102_init(&MAX30102, &hi2c1);
   max30102_reset(&MAX30102);
   max30102_clear_fifo(&MAX30102);
-  max30102_set_fifo_config(&MAX30102, max30102_smp_ave_8, 1, 5);
+  max30102_set_fifo_config(&MAX30102, max30102_smp_ave_32, 1, 5);
   
   // Sensor settings
   max30102_set_led_pulse_width(&MAX30102, max30102_pw_16_bit);
   max30102_set_adc_resolution(&MAX30102, max30102_adc_2048);
-  max30102_set_sampling_rate(&MAX30102, max30102_sr_1000);
+  max30102_set_sampling_rate(&MAX30102, max30102_sr_800);
   max30102_set_led_current_1(&MAX30102, 6.5);
-  max30102_set_led_current_2(&MAX30102, 1.0);
+  max30102_set_led_current_2(&MAX30102, 6.5);
 
   // Enter SpO2 mode
   max30102_set_mode(&MAX30102, max30102_spo2);
@@ -704,14 +705,14 @@ void SENSOR_Task(void *argument)
     if ((HAL_GetTick() - lastTime) >= 30000)
     {
       char buf[5] = {0};
-      logPC("HELLO! Now is %02d/%02d/%02d %02d:%02d:%02d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
+      // logPC("HELLO! Now is %02d/%02d/%02d %02d:%02d:%02d\n", myRTC.Date.date, myRTC.Date.month, myRTC.Date.year, myRTC.Time.hours, myRTC.Time.minutes, myRTC.Time.seconds);
       // logPC("ADC 12-bit value is %hu\n", Batt.Voltage_12bits[0]);
       // ftoa(Batt.Voltage_V, buf, 2);
       // logPC("ADC Voltage is %s\n", buf);
       // memset(buf, '\0', sizeof(buf));
-      ftoa0(Batt.Voltage_Batt, buf, 2);
-      logPC("Batt Voltage is %s\n", buf);
-      logPC("Percent Battery is %hd\n", Batt.Perc_Batt);
+      // ftoa0(Batt.Voltage_Batt, buf, 2);
+      // logPC("Batt Voltage is %s\n", buf);
+      // logPC("Percent Battery is %hd\n", Batt.Perc_Batt);
       lastTime = HAL_GetTick();
     }
 
@@ -784,7 +785,9 @@ void SENSOR_Task(void *argument)
       count = 0;
       while (MAX30102._ir_samples[count] != '\0')
       {
-        IR_Value[IR_Count++] = MAX30102._ir_samples[count++];
+        IR_Value[IR_Count++] = MAX30102._ir_samples[count];
+        RD_Value[RD_Count++] = MAX30102._red_samples[count];
+        count++;
       }
 
       if (IR_Count >= 200)
@@ -792,36 +795,45 @@ void SENSOR_Task(void *argument)
         isDataValid = true;
         for (uint8_t i = 0; ((i < 200) && (isDataValid == true)); i++)
         {
-          if (IR_Value[i] < IR_THRESHOLD*5)
+          // if (IR_Value[i] < IR_THRESHOLD*5)
+          // {
+          //   isDataValid = false;
+          //   // logPC("Finger OFF\n");
+          //   if (isNaize == true)
+          //   {
+          //     HeartRate += (int8_t) random_number(-5, 5);
+          //     if (HeartRate >= 105)
+          //     {HeartRate = 105;}
+          //     if (HeartRate <= 75)
+          //     {HeartRate = 75;}
+          //     TimeHR = HAL_GetTick();
+          //   }
+          // }
+          // else
           {
-            isDataValid = false;
-            logPC("Finger OFF\n");
-            if (isNaize == true)
-            {
-              HeartRate += (int8_t) random_number(-5, 5);
-              if (HeartRate >= 105)
-              {HeartRate = 105;}
-              if (HeartRate <= 75)
-              {HeartRate = 75;}
-              TimeHR = HAL_GetTick();
-            }
-          }
-          else
-          {
-            if ((i >= 2) && (i <= 197))
-            {
-              IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
-              IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
-              IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
-            }
+            // if ((i >= 2) && (i <= 197))
+            // {
+            //   IR_Value[i-1] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i]) / 3;
+            //   IR_Value[i] = (IR_Value[i-2] + IR_Value[i-1] + IR_Value[i] + IR_Value[i+1] + IR_Value[i+2]) / 5;
+            //   IR_Value[i+1] = (IR_Value[i+2] + IR_Value[i+1] + IR_Value[i]) / 3;
+            // }
 #if PLOT == 1
-            logPC("$%i %i;", IR_Value[i]/5);
+            // char t[8] = {0};
+            // t[0] = 0xAA;
+            // t[1] = 0xBB;
+            // t[2] = 0x04;
+            // t[3] = (uint8_t)(((uint32_t)(IR_Value[i]/5) >> 24U) & 0xFF);
+            // t[4] = (uint8_t)(((uint32_t)(IR_Value[i]/5) >> 16U) & 0xFF);
+            // t[5] = (uint8_t)(((uint32_t)(IR_Value[i]/5) >> 8U) & 0xFF);
+            // t[6] = (uint8_t)(((uint32_t)(IR_Value[i]/5) >> 0U) & 0xFF);
+            // logPC("%s", t);
+            logPC("%i,%i\n", IR_Value[i]/5, RD_Value[i]/5);
 #endif
           }
         }
         if (isDataValid == true)
         {
-          logPC("Finger ON\n");
+          // logPC("Finger ON\n");
           MAX30102.Peak.nPeak = 0;
           for (uint8_t i = 0; i < 10; i++)
           {
@@ -849,7 +861,7 @@ void SENSOR_Task(void *argument)
               if (tHR[0] != '\0')
               {
                 HeartRate = (uint8_t)((tHR[0] + tHR[1] + tHR[2] + tHR[3]) / 4);
-                logPC("Heart Rate: %d BPM\n", HeartRate);
+                // logPC("Heart Rate: %d BPM\n", HeartRate);
               }
             }
           }

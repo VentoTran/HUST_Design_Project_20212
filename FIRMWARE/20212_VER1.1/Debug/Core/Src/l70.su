@@ -1,0 +1,4 @@
+../Core/Src/l70.c:25:6:l70_callback	8	static
+../Core/Src/l70.c:52:7:l70_receiveGPS	16	static
+../Core/Src/l70.c:62:6:l70_init	32	static
+../Core/Src/l70.c:91:6:l70_handleGPS	72	static

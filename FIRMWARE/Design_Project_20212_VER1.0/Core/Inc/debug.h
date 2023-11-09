@@ -18,7 +18,7 @@
 #define UART_DEBUG  &huart1
 
 #define DEBUG   1
-#define PLOT    0
+#define PLOT    1
 
 void Debug_Init(void);
 
