@@ -1,0 +1,15 @@
+
+
+
+
+Data Analyzing and Proccessing
+	https://www.instructables.com/Pulse-Oximeter-With-Much-Improved-Precision/
+
+====================================================================================================
+
+OLED
+	https://github.com/nopnop2002/esp-idf-ssd1306
+	https://esp32tutorials.com/oled-esp32-esp-idf-tutorial/
+
+
+

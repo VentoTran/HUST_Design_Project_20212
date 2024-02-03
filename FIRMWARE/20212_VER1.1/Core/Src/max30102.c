@@ -409,7 +409,6 @@ void max30102_read_fifo(max30102_t *obj)
  * @param temp_int Pointer to store the integer part of temperature. Stored in 2's complement format.
  * @param temp_frac Pointer to store the fractional part of temperature. Increments of 0.0625 deg C.
  */
-
 void max30102_read_temp(max30102_t *obj, int8_t *temp_int, uint8_t *temp_frac)
 {
     max30102_read(obj, MAX30102_DIE_TINT, (uint8_t *)temp_int, 1);
